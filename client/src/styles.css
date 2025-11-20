@@ -343,6 +343,34 @@ button:not(:disabled):hover {
   letter-spacing: 0.01em;
 }
 
+.timeline-row__model-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  line-height: 1;
+}
+
+.timeline-row__agent-chip {
+  margin-top: 0.15rem;
+}
+
+.agent-chip--inline {
+  margin-top: 0.2rem;
+}
+
 .timeline-row__tokens {
   display: flex;
   flex-wrap: wrap;

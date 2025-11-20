@@ -12,6 +12,14 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, 'dist', 'client'),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-tokenizer': ['@anthropic-ai/tokenizer'],
+        },
+      },
+    },
   },
   server: {
     port: 5173,

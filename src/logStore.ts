@@ -2,6 +2,8 @@ import { existsSync, promises as fs } from 'fs';
 import path from 'path';
 import { appConfig } from './config';
 import { logger } from './logger';
+import type { AgentTagInfo } from './agentTagger';
+import { deriveAgentTag } from './agentTagger';
 import type { InteractionLog, TokenUsageSummary } from './logWriter';
 import { AnthropicStreamAggregator } from './streamAggregator';
 import { analyzeTokenUsage } from './tokenMetrics';
@@ -26,6 +28,7 @@ export interface LogSummary {
   model?: string;
   error?: string;
   tokenUsage?: TokenUsageSummary;
+  agentTag?: AgentTagInfo;
 }
 
 export interface ListLogsOptions {
@@ -111,11 +114,31 @@ async function ensureLogMetadata(entry: InteractionLog, filePath: string): Promi
     }
   }
 
-  if (bodyUpdated || usageUpdated) {
+  let tagUpdated = false;
+  try {
+    const derivedTag = deriveAgentTag(entry.request?.body);
+    const existing = entry.agentTag;
+    if (
+      !existing ||
+      existing.id !== derivedTag.id ||
+      existing.label !== derivedTag.label ||
+      existing.description !== derivedTag.description ||
+      existing.theme?.background !== derivedTag.theme.background ||
+      existing.theme?.border !== derivedTag.theme.border ||
+      existing.theme?.text !== derivedTag.theme.text
+    ) {
+      entry.agentTag = derivedTag;
+      tagUpdated = true;
+    }
+  } catch (error) {
+    logger.warn({ err: error, entryId: entry.id }, 'failed to derive agent tag');
+  }
+
+  if (bodyUpdated || usageUpdated || tagUpdated) {
     try {
       await fs.writeFile(filePath, JSON.stringify(entry, null, 2), 'utf8');
       logger.debug(
-        { fileName: path.basename(filePath), bodyUpdated, usageUpdated },
+        { fileName: path.basename(filePath), bodyUpdated, usageUpdated, tagUpdated },
         'persisted log metadata to disk'
       );
       return true;
@@ -196,6 +219,10 @@ export async function listLogs(options: ListLogsOptions): Promise<ListLogsResult
       summary.tokenUsage = entry.tokenUsage;
     }
 
+    if (entry.agentTag) {
+      summary.agentTag = entry.agentTag;
+    }
+
     items.push(summary);
   }
 
@@ -270,6 +297,7 @@ export interface RecomputeLogsResult {
   processed: number;
   updatedBodies: number;
   updatedUsage: number;
+  updatedTags: number;
   failed: Array<{ fileName: string; error: string }>;
 }
 
@@ -279,6 +307,7 @@ export async function recomputeLogs(): Promise<RecomputeLogsResult> {
     processed: 0,
     updatedBodies: 0,
     updatedUsage: 0,
+    updatedTags: 0,
     failed: [],
   };
 
@@ -344,7 +373,27 @@ export async function recomputeLogs(): Promise<RecomputeLogsResult> {
       continue;
     }
 
-    if (bodyUpdated || usageUpdated) {
+    let tagUpdated = false;
+    try {
+      const derivedTag = deriveAgentTag(entry.request?.body);
+      const existing = entry.agentTag;
+      if (
+        !existing ||
+        existing.id !== derivedTag.id ||
+        existing.label !== derivedTag.label ||
+        existing.description !== derivedTag.description ||
+        existing.theme?.background !== derivedTag.theme.background ||
+        existing.theme?.border !== derivedTag.theme.border ||
+        existing.theme?.text !== derivedTag.theme.text
+      ) {
+        entry.agentTag = derivedTag;
+        tagUpdated = true;
+      }
+    } catch (error) {
+      logger.warn({ err: error, fileName }, 'failed to derive agent tag');
+    }
+
+    if (bodyUpdated || usageUpdated || tagUpdated) {
       try {
         await fs.writeFile(filePath, JSON.stringify(entry, null, 2), 'utf8');
         if (bodyUpdated) {
@@ -352,6 +401,9 @@ export async function recomputeLogs(): Promise<RecomputeLogsResult> {
         }
         if (usageUpdated) {
           result.updatedUsage += 1;
+        }
+        if (tagUpdated) {
+          result.updatedTags += 1;
         }
       } catch (error) {
         result.failed.push({

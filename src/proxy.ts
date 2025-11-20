@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { Readable } from 'stream';
 import { fetch } from 'undici';
 import { appConfig } from './config';
+import { deriveAgentTag } from './agentTagger';
 import { logger } from './logger';
 import { InteractionLog, sanitizeHeaders, writeInteractionLog } from './logWriter';
 import { AnthropicStreamAggregator } from './streamAggregator';
@@ -98,6 +99,7 @@ export async function proxyAnthropicRequest(
       body: req.body,
     },
   };
+  logEntry.agentTag = deriveAgentTag(logEntry.request.body);
 
   const controller = new AbortController();
   // When the client disconnects we abort the upstream fetch so we do not leak sockets.

@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { appConfig } from './config';
+import type { AgentTagInfo } from './agentTagger';
 import { logger } from './logger';
 
 const SENSITIVE_HEADERS = new Set(['x-api-key', 'authorization', 'proxy-authorization']);
@@ -79,6 +80,7 @@ export interface InteractionLog {
     error?: string;
   };
   tokenUsage?: TokenUsageSummary;
+  agentTag?: AgentTagInfo;
 }
 
 function sanitizeHeaderValue(value: string): string {

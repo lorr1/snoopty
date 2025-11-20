@@ -69,6 +69,19 @@ interface TokenUsageSummary {
   custom?: CustomTokenUsage;
 }
 
+interface AgentTagTheme {
+  text: string;
+  background: string;
+  border: string;
+}
+
+interface AgentTagInfo {
+  id: string;
+  label: string;
+  description?: string;
+  theme: AgentTagTheme;
+}
+
 interface LogSummary {
   id: string;
   fileName: string;
@@ -80,6 +93,7 @@ interface LogSummary {
   model?: string;
   error?: string;
   tokenUsage?: TokenUsageSummary;
+  agentTag?: AgentTagInfo;
 }
 
 interface LogWithTime extends LogSummary {
@@ -105,6 +119,7 @@ interface InteractionLog {
     error?: string;
   };
   tokenUsage?: TokenUsageSummary;
+  agentTag?: AgentTagInfo;
 }
 
 type GroupedLogs = Array<{
@@ -124,7 +139,19 @@ type DetailTabId = (typeof DETAIL_TABS)[number]['id'];
 
 type EndpointCategory = 'messages' | 'other';
 type EndpointFilter = 'all' | EndpointCategory;
+type AgentFilter = 'all' | 'untagged' | string;
 type ResponseViewMode = 'body' | 'stream';
+
+const FALLBACK_AGENT_TAG: AgentTagInfo = {
+  id: 'untagged',
+  label: 'Untagged',
+  description: 'No system prompt detected for this request.',
+  theme: {
+    text: '#0f172a',
+    background: 'rgba(15, 23, 42, 0.08)',
+    border: 'rgba(15, 23, 42, 0.2)',
+  },
+};
 
 const ENDPOINT_FILTER_OPTIONS: Array<{ id: EndpointFilter; label: string }> = [
   { id: 'all', label: 'All' },
@@ -769,6 +796,16 @@ function matchesEndpointFilter(path: string | undefined, filter: EndpointFilter)
   return getEndpointCategory(path) === filter;
 }
 
+function matchesAgentFilter(agentTag: AgentTagInfo | undefined, filter: AgentFilter): boolean {
+  if (filter === 'all') {
+    return true;
+  }
+  if (filter === 'untagged') {
+    return !agentTag;
+  }
+  return agentTag?.id === filter;
+}
+
 export default function App(): JSX.Element {
   const [logs, setLogs] = useState<LogSummary[]>([]);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
@@ -790,10 +827,41 @@ export default function App(): JSX.Element {
   const [timeWindowDays, setTimeWindowDays] = useState(1);
   const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange | null>(null);
   const [endpointFilter, setEndpointFilter] = useState<EndpointFilter>('messages');
+  const [agentFilter, setAgentFilter] = useState<AgentFilter>('all');
   const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>('body');
   const [isRecomputing, setIsRecomputing] = useState(false);
   const [recomputeMessage, setRecomputeMessage] = useState<string | null>(null);
   const [isChatPreviewOpen, setIsChatPreviewOpen] = useState(false);
+
+  const agentFilterOptions = useMemo<Array<{ id: AgentFilter; label: string }>>(() => {
+    const seen = new Map<string, { id: AgentFilter; label: string }>();
+    let hasUntagged = false;
+
+    logs.forEach((entry) => {
+      if (entry.agentTag) {
+        if (!seen.has(entry.agentTag.id)) {
+          seen.set(entry.agentTag.id, {
+            id: entry.agentTag.id,
+            label: entry.agentTag.label,
+          });
+        }
+      } else {
+        hasUntagged = true;
+      }
+    });
+
+    const sorted = Array.from(seen.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
+    const options: Array<{ id: AgentFilter; label: string }> = [
+      { id: 'all', label: 'All agents' },
+      ...sorted,
+    ];
+    if (hasUntagged) {
+      options.push({ id: 'untagged', label: 'Untagged' });
+    }
+    return options;
+  }, [logs]);
 
   const logsWithTime = useMemo<LogWithTime[]>(() => {
     // Parse timestamps once so all downstream calculations (sorting, brush math) can
@@ -855,6 +923,11 @@ export default function App(): JSX.Element {
     [windowedLogs, endpointFilter]
   );
 
+  const agentFilteredLogs = useMemo(
+    () => endpointFilteredLogs.filter((entry) => matchesAgentFilter(entry.agentTag, agentFilter)),
+    [endpointFilteredLogs, agentFilter]
+  );
+
   const effectiveSelection = useMemo<TimeRange>(() => {
     if (!selectedTimeRange) {
       return { start: windowStart, end: windowEnd };
@@ -871,10 +944,11 @@ export default function App(): JSX.Element {
 
   const filteredLogs = useMemo(
     () =>
-      endpointFilteredLogs.filter(
-        (entry) => entry.timestampMs >= effectiveSelection.start && entry.timestampMs <= effectiveSelection.end
+      agentFilteredLogs.filter(
+        (entry) =>
+          entry.timestampMs >= effectiveSelection.start && entry.timestampMs <= effectiveSelection.end
       ),
-    [endpointFilteredLogs, effectiveSelection]
+    [agentFilteredLogs, effectiveSelection]
   );
 
   const filteredFileNames = useMemo(
@@ -903,6 +977,15 @@ export default function App(): JSX.Element {
     // eslint-disable-next-line no-console
     console.debug('[snoopty] logs fetched', logs.length);
   }, [logs]);
+
+  useEffect(() => {
+    if (agentFilter === 'all') {
+      return;
+    }
+    if (!agentFilterOptions.some((option) => option.id === agentFilter)) {
+      setAgentFilter('all');
+    }
+  }, [agentFilter, agentFilterOptions]);
 
   useEffect(() => {
     // eslint-disable-next-line no-console
@@ -998,6 +1081,9 @@ export default function App(): JSX.Element {
     () => buildChatPreviewSegments(selectedLog?.request.body, selectedLog?.request),
     [selectedLog?.request.body, selectedLog?.request]
   );
+
+  const activeAgentTag = selectedSummary?.agentTag ?? selectedLog?.agentTag ?? null;
+  const detailAgentChip = activeAgentTag ?? FALLBACK_AGENT_TAG;
 
   const chatPreviewMetadata = useMemo<ChatPreviewMetadata | null>(() => {
     if (!selectedLog) {
@@ -1126,6 +1212,13 @@ export default function App(): JSX.Element {
     []
   );
 
+  const handleAgentFilterChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      setAgentFilter(event.target.value as AgentFilter);
+    },
+    []
+  );
+
   const handleBrushSelection = useCallback((range: TimeRange | null) => {
     setSelectedTimeRange(range);
   }, []);
@@ -1211,6 +1304,7 @@ export default function App(): JSX.Element {
         processed: number;
         updatedBodies: number;
         updatedUsage: number;
+        updatedTags?: number;
         failed: Array<{ fileName: string; error: string }>;
       };
       const summaryParts = [
@@ -1218,6 +1312,9 @@ export default function App(): JSX.Element {
         `${data.updatedBodies} body updates`,
         `${data.updatedUsage} usage updates`,
       ];
+      if (typeof data.updatedTags === 'number') {
+        summaryParts.push(`${data.updatedTags} tag updates`);
+      }
       if (data.failed.length > 0) {
         summaryParts.push(`${data.failed.length} failed`);
       }
@@ -1511,6 +1608,16 @@ export default function App(): JSX.Element {
                     ))}
                   </select>
                 </label>
+                <label className="timeseries-controls__endpoint">
+                  Agent
+                  <select value={agentFilter} onChange={handleAgentFilterChange}>
+                    {agentFilterOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
                   className="text-button"
@@ -1616,6 +1723,7 @@ export default function App(): JSX.Element {
                     const footerTextClass = entry.error
                       ? 'timeline-row__footer-text timeline-row__footer-text--error'
                       : 'timeline-row__footer-text';
+                    const agentChip = entry.agentTag ?? FALLBACK_AGENT_TAG;
                     return (
                       <li
                         key={entry.fileName}
@@ -1636,8 +1744,21 @@ export default function App(): JSX.Element {
                             />
                           </div>
                           <div className="timeline-row__main">
-                            <div className="timeline-row__model">
-                              {entry.model ?? 'Unknown model'}
+                            <div className="timeline-row__model-line">
+                              <div className="timeline-row__model">
+                                {entry.model ?? 'Unknown model'}
+                              </div>
+                              <span
+                                className="agent-chip timeline-row__agent-chip"
+                                style={{
+                                  color: agentChip.theme.text,
+                                  backgroundColor: agentChip.theme.background,
+                                  borderColor: agentChip.theme.border,
+                                }}
+                                title={agentChip.description ?? agentChip.label}
+                              >
+                                {agentChip.label}
+                              </span>
                             </div>
                             {tokenChips.length > 0 && (
                               <div className="timeline-row__tokens">
@@ -1836,6 +1957,22 @@ export default function App(): JSX.Element {
                           <div className="detail-property">
                             <dt>Model</dt>
                             <dd>{selectedSummary?.model ?? 'Unknown'}</dd>
+                          </div>
+                          <div className="detail-property">
+                            <dt>Agent</dt>
+                            <dd>
+                              <span
+                                className="agent-chip agent-chip--inline"
+                                style={{
+                                  color: detailAgentChip.theme.text,
+                                  backgroundColor: detailAgentChip.theme.background,
+                                  borderColor: detailAgentChip.theme.border,
+                                }}
+                                title={detailAgentChip.description ?? detailAgentChip.label}
+                              >
+                                {detailAgentChip.label}
+                              </span>
+                            </dd>
                           </div>
                           <div className="detail-property">
                             <dt>Query</dt>
