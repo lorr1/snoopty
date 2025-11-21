@@ -1,24 +1,7 @@
-type AgentTagId =
-  | 'primary'
-  | 'file-search'
-  | 'topic-labeler'
-  | 'framework-detector'
-  | 'language-detector'
-  | 'conversation-summarizer'
-  | 'unknown';
+import type { AgentTagId, AgentTagInfo, AgentTagTheme } from '../shared/types';
 
-interface AgentTagTheme {
-  text: string;
-  background: string;
-  border: string;
-}
-
-export interface AgentTagInfo {
-  id: AgentTagId;
-  label: string;
-  description?: string;
-  theme: AgentTagTheme;
-}
+// Re-export for backward compatibility
+export type { AgentTagId, AgentTagInfo, AgentTagTheme } from '../shared/types';
 
 type AgentTagMatcher = RegExp | ((value: string) => boolean);
 

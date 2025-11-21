@@ -18,6 +18,7 @@ export type BrushPoint = {
   timestampMs: number;
   tone: BrushTone;
   color?: string;
+  fileName?: string;
 };
 
 export type TimeRange = {
@@ -30,6 +31,7 @@ export interface TimelineBrushProps {
   range: TimeRange;
   effectiveSelection: TimeRange;
   selectionActive: boolean;
+  activeTimestamp?: number | null;
   onSelectionChange: (range: TimeRange | null) => void;
 }
 
@@ -38,6 +40,7 @@ export default function TimelineBrush({
   range,
   effectiveSelection,
   selectionActive,
+  activeTimestamp,
   onSelectionChange,
 }: TimelineBrushProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -56,6 +59,10 @@ export default function TimelineBrush({
     1
   );
 
+  const selectionMatchesViewport =
+    Math.abs(effectiveSelection.start - range.start) <= 1 &&
+    Math.abs(effectiveSelection.end - range.end) <= 1;
+
   const displayedSelection = dragState
     ? {
         start: Math.min(dragState.start, dragState.current),
@@ -65,7 +72,7 @@ export default function TimelineBrush({
     : {
         start: selectionStartFraction,
         end: selectionEndFraction,
-        active: selectionActive,
+        active: selectionActive && !selectionMatchesViewport,
       };
 
   const fractionToTimestamp = (fraction: number): number => {
@@ -137,6 +144,46 @@ export default function TimelineBrush({
     setDragState(null);
   };
 
+  const hasActiveMarker =
+    typeof activeTimestamp === 'number' &&
+    activeTimestamp >= range.start &&
+    activeTimestamp <= range.end;
+  const activeMarkerFraction = hasActiveMarker
+    ? clamp((activeTimestamp - range.start) / rangeLength, 0, 1)
+    : null;
+
+  const MIN_FRACTION_GAP = 0.004; // ~=0.4% of track width; keeps adjacent bars readable.
+
+  const adjustedFractions = (() => {
+    if (logs.length === 0) {
+      return new Map<number, number>();
+    }
+    const placements = logs.map((entry, index) => ({
+      index,
+      fraction: clamp((entry.timestampMs - range.start) / rangeLength, 0, 1),
+    }));
+    placements.sort((a, b) => a.fraction - b.fraction);
+    for (let i = 1; i < placements.length; i += 1) {
+      const prev = placements[i - 1];
+      const current = placements[i];
+      if (current.fraction - prev.fraction < MIN_FRACTION_GAP) {
+        placements[i].fraction = Math.min(prev.fraction + MIN_FRACTION_GAP, 1);
+      }
+    }
+    for (let i = placements.length - 2; i >= 0; i -= 1) {
+      const next = placements[i + 1];
+      const current = placements[i];
+      if (next.fraction - current.fraction < MIN_FRACTION_GAP) {
+        placements[i].fraction = Math.max(next.fraction - MIN_FRACTION_GAP, 0);
+      }
+    }
+    const map = new Map<number, number>();
+    placements.forEach(({ index, fraction }) => {
+      map.set(index, fraction);
+    });
+    return map;
+  })();
+
   return (
     <div className="timeline-brush-container">
       <div
@@ -151,6 +198,12 @@ export default function TimelineBrush({
         role="presentation"
       >
         <div className="timeline-brush__track" />
+        {hasActiveMarker && activeMarkerFraction !== null && (
+          <div
+            className="timeline-brush__active-marker"
+            style={{ left: `${activeMarkerFraction * 100}%` }}
+          />
+        )}
         <div
           className={`timeline-brush__selection${
             displayedSelection.active ? ' timeline-brush__selection--active' : ''
@@ -161,7 +214,11 @@ export default function TimelineBrush({
           }}
         />
         {logs.map((entry, index) => {
-          const fraction = clamp((entry.timestampMs - range.start) / rangeLength, 0, 1);
+          const fraction =
+            adjustedFractions.get(index) ??
+            clamp((entry.timestampMs - range.start) / rangeLength, 0, 1);
+          const isActive =
+            typeof activeTimestamp === 'number' && entry.timestampMs === activeTimestamp;
           const dotStyle: CSSProperties = { left: `${fraction * 100}%` };
           if (entry.color) {
             dotStyle.backgroundColor = entry.color;
@@ -169,7 +226,9 @@ export default function TimelineBrush({
           return (
             <span
               key={`${entry.timestampMs}-${entry.tone}-${index}`}
-              className={`timeline-brush__dot timeline-brush__dot--${entry.tone}`}
+              className={`timeline-brush__dot timeline-brush__dot--${entry.tone}${
+                isActive ? ' timeline-brush__dot--active' : ''
+              }`}
               style={dotStyle}
             />
           );

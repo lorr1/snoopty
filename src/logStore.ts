@@ -2,11 +2,18 @@ import { existsSync, promises as fs } from 'fs';
 import path from 'path';
 import { appConfig } from './config';
 import { logger } from './logger';
-import type { AgentTagInfo } from './agentTagger';
 import { deriveAgentTag } from './agentTagger';
-import type { InteractionLog, TokenUsageSummary } from './logWriter';
 import { AnthropicStreamAggregator } from './streamAggregator';
 import { analyzeTokenUsage } from './tokenMetrics';
+import type {
+  InteractionLog,
+  ListLogsOptions,
+  ListLogsResult,
+  LogSummary,
+} from '../shared/types';
+
+// Re-export for backward compatibility
+export type { ListLogsOptions, ListLogsResult, LogSummary } from '../shared/types';
 
 /**
  * Lightweight storage layer for interaction logs. Each request/response pair is written
@@ -16,30 +23,6 @@ import { analyzeTokenUsage } from './tokenMetrics';
  */
 
 const LOG_FILE_REGEX = /^[0-9A-Z\-]+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$/i;
-
-export interface LogSummary {
-  id: string;
-  fileName: string;
-  timestamp: string;
-  method: string;
-  path: string;
-  status?: number;
-  durationMs?: number;
-  model?: string;
-  error?: string;
-  tokenUsage?: TokenUsageSummary;
-  agentTag?: AgentTagInfo;
-}
-
-export interface ListLogsOptions {
-  limit: number;
-  cursor?: string;
-}
-
-export interface ListLogsResult {
-  items: LogSummary[];
-  nextCursor?: string;
-}
 
 async function readInteractionLog(filePath: string): Promise<InteractionLog | null> {
   try {
@@ -91,66 +74,105 @@ function ensureLogDirExists(dir: string): boolean {
   return existsSync(dir);
 }
 
-/**
- * Ensures log metadata (hydrated body and token usage) is computed and persisted.
- * Returns true if the log was modified and written to disk.
- */
-async function ensureLogMetadata(entry: InteractionLog, filePath: string): Promise<boolean> {
-  const bodyUpdated = hydrateResponseBody(entry);
+// =============================================================================
+// Metadata Computation Functions
+// =============================================================================
 
-  let usageUpdated = false;
-  if (!entry.tokenUsage) {
-    try {
-      const tokenUsage = await analyzeTokenUsage(entry);
-      if (tokenUsage) {
-        entry.tokenUsage = tokenUsage;
-        usageUpdated = true;
-      }
-    } catch (error) {
-      logger.error(
-        { err: error, entryId: entry.id },
-        'failed to analyze token usage'
-      );
-    }
+/**
+ * Ensures token usage is computed for the entry.
+ * Returns true if the entry was modified.
+ */
+async function ensureTokenUsage(entry: InteractionLog): Promise<boolean> {
+  if (entry.tokenUsage) {
+    return false;
   }
 
-  let tagUpdated = false;
+  try {
+    const tokenUsage = await analyzeTokenUsage(entry);
+    if (tokenUsage) {
+      entry.tokenUsage = tokenUsage;
+      return true;
+    }
+  } catch (error) {
+    logger.error(
+      { err: error, entryId: entry.id },
+      'failed to analyze token usage'
+    );
+  }
+
+  return false;
+}
+
+/**
+ * Ensures agent tag is derived and up-to-date for the entry.
+ * Returns true if the entry was modified.
+ */
+function ensureAgentTag(entry: InteractionLog): boolean {
   try {
     const derivedTag = deriveAgentTag(entry.request?.body);
     const existing = entry.agentTag;
-    if (
+
+    const needsUpdate =
       !existing ||
       existing.id !== derivedTag.id ||
       existing.label !== derivedTag.label ||
       existing.description !== derivedTag.description ||
       existing.theme?.background !== derivedTag.theme.background ||
       existing.theme?.border !== derivedTag.theme.border ||
-      existing.theme?.text !== derivedTag.theme.text
-    ) {
+      existing.theme?.text !== derivedTag.theme.text;
+
+    if (needsUpdate) {
       entry.agentTag = derivedTag;
-      tagUpdated = true;
+      return true;
     }
   } catch (error) {
     logger.warn({ err: error, entryId: entry.id }, 'failed to derive agent tag');
   }
 
-  if (bodyUpdated || usageUpdated || tagUpdated) {
-    try {
-      await fs.writeFile(filePath, JSON.stringify(entry, null, 2), 'utf8');
-      logger.debug(
-        { fileName: path.basename(filePath), bodyUpdated, usageUpdated, tagUpdated },
-        'persisted log metadata to disk'
-      );
-      return true;
-    } catch (error) {
-      logger.warn(
-        { err: error, fileName: path.basename(filePath) },
-        'failed to persist log metadata'
-      );
-    }
+  return false;
+}
+
+/**
+ * Persists the entry to disk if it was modified.
+ * Returns true if the write succeeded.
+ */
+async function persistLogIfModified(
+  entry: InteractionLog,
+  filePath: string,
+  updates: { bodyUpdated: boolean; usageUpdated: boolean; tagUpdated: boolean }
+): Promise<boolean> {
+  const { bodyUpdated, usageUpdated, tagUpdated } = updates;
+
+  if (!bodyUpdated && !usageUpdated && !tagUpdated) {
+    return false;
   }
 
-  return false;
+  try {
+    await fs.writeFile(filePath, JSON.stringify(entry, null, 2), 'utf8');
+    logger.debug(
+      { fileName: path.basename(filePath), bodyUpdated, usageUpdated, tagUpdated },
+      'persisted log metadata to disk'
+    );
+    return true;
+  } catch (error) {
+    logger.warn(
+      { err: error, fileName: path.basename(filePath) },
+      'failed to persist log metadata'
+    );
+    return false;
+  }
+}
+
+/**
+ * Ensures log metadata (hydrated body, token usage, and agent tag) is computed and persisted.
+ * Returns true if the log was modified and written to disk.
+ */
+async function ensureLogMetadata(entry: InteractionLog, filePath: string): Promise<boolean> {
+  const bodyUpdated = hydrateResponseBody(entry);
+  const usageUpdated = await ensureTokenUsage(entry);
+  const tagUpdated = ensureAgentTag(entry);
+
+  return persistLogIfModified(entry, filePath, { bodyUpdated, usageUpdated, tagUpdated });
 }
 
 export async function listLogs(options: ListLogsOptions): Promise<ListLogsResult> {
@@ -252,7 +274,8 @@ export async function getLog(fileName: string): Promise<InteractionLog | null> {
     await ensureLogMetadata(entry, filePath);
 
     return entry;
-  } catch {
+  } catch (error) {
+    logger.error({ err: error, fileName }, 'failed to get log');
     return null;
   }
 }

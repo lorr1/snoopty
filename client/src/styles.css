@@ -475,6 +475,15 @@ button:not(:disabled):hover {
   background: rgba(148, 163, 184, 0.45);
 }
 
+.timeline-brush__dot--active {
+  outline: 1.5px solid #0f172a;
+  outline-offset: 1px;
+}
+
+.timeline-brush__active-marker {
+  display: none;
+}
+
 .timeline-brush__axis {
   display: flex;
   justify-content: space-between;

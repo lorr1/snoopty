@@ -1,13 +1,11 @@
 import { inspect } from 'util';
 import { appConfig } from './config';
+import { logger } from './logger';
 import type {
   CustomTokenUsage,
   InteractionLog,
   TokenCountDetail,
   TokenUsageSegmentId,
-  InputSegmentId,
-  OutputSegmentId,
-  TokenBreakdown,
 } from './logWriter';
 
 /**
@@ -310,16 +308,7 @@ function collectRequestBuckets(entry: InteractionLog, buckets: InputBuckets): vo
 
   const data = body as Record<string, unknown>;
   const { tools, ...dataWithoutTools } = data;
-  console.log(
-    '[Laurel] Counting custom request data\n',
-    inspect(dataWithoutTools, { depth: null, colors: true, compact: false })
-  );
-  if (tools) {
-    const toolSummary = Array.isArray(tools)
-      ? { tools_count: tools.length }
-      : { tools_type: typeof tools };
-    console.log('[Laurel] request data tools omitted from dump', toolSummary);
-  }
+  console.log('[Laurel] Counting custom request data\n', inspect(dataWithoutTools, { depth: null, colors: true, compact: false }));
   const system = data.system;
   if (Array.isArray(system)) {
     for (const item of system) {
@@ -369,7 +358,6 @@ function collectRequestBuckets(entry: InteractionLog, buckets: InputBuckets): vo
           // Tools are under data.tools, not in messages
           throw new Error('Unexpected tool role in request messages');
         default:
-          console.log('[Laurel] !!!unknown message role, treating as assistant', { role });
           throw new Error(`Unexpected message role: ${role}`);
       }
     }
@@ -380,13 +368,9 @@ function collectResponseBuckets(entry: InteractionLog, buckets: OutputBuckets): 
   if (!entry.response) {
     return;
   }
-  console.log(
-    '[Laurel] Counting custom response data\n',
-    inspect(entry.response.body, { depth: null, colors: true, compact: false })
-  );
   const { body, streamChunks } = entry.response;
+  console.log('[Laurel] Counting custom response  data\n', inspect(entry.response.body, { depth: null, colors: true, compact: false }) );
   if (body && typeof body === 'object') {
-    console.log('[Laurel] processing response body for token counting');
     const content = (body as Record<string, unknown>).content;
     if (Array.isArray(content)) {
       const contentByType = normalizeContentByType(content);
@@ -404,7 +388,6 @@ function collectResponseBuckets(entry: InteractionLog, buckets: OutputBuckets): 
   }
   // Only look at streamChunks if body is not present
   else if (Array.isArray(streamChunks)) {
-    console.log('[Laurel] processing stream chunks for token counting');
     for (const chunk of streamChunks) {
       const lines = chunk.split('\n');
       for (const rawLine of lines) {
@@ -501,17 +484,15 @@ async function buildDetail(
         segments = textSegments.length;
         break;
       default:
-        console.log('[Laurel] !!!unknown role in buildDetail', { role });
+        logger.warn({ role }, 'Unknown role in buildDetail');
         tokens = 0;
         textLength = 0;
         segments = 0;
     }
   } catch (error) {
-    console.error(`Failed to count tokens for ${role}:`, error);
+    logger.error({ role, error }, 'Failed to count tokens');
     throw error;
   }
-
-  console.log('[Laurel] Token counting detail', { role, tokens, textSegments });
   return {
     tokens,
     textLength,

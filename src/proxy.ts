@@ -1,6 +1,5 @@
 import type { Request, Response as ExpressResponse } from 'express';
 import type {
-  BodyInit as UndiciBodyInit,
   RequestInit as UndiciRequestInit,
   Response as UndiciResponse,
 } from 'undici';
@@ -27,6 +26,10 @@ import { AnthropicStreamAggregator } from './streamAggregator';
 
 const METHODS_WITHOUT_BODY = new Set(['GET', 'HEAD']);
 
+// Monotonic timestamp tracking to ensure unique timestamps for each log entry
+let lastTimestampMs = 0;
+let timestampCounter = 0;
+
 function buildUpstreamUrl(originalUrl: string): string {
   return new URL(originalUrl, appConfig.upstreamBaseUrl).toString();
 }
@@ -50,7 +53,11 @@ function shouldForwardBody(method: string, body: unknown): boolean {
   return true;
 }
 
-function serializeRequestBody(req: Request): UndiciBodyInit | null {
+/**
+ * Serialize the Express request body for forwarding to upstream.
+ * Returns null if there's no body to forward.
+ */
+function serializeRequestBody(req: Request): string | Buffer | null {
   if (!shouldForwardBody(req.method, req.body)) {
     return null;
   }
@@ -60,11 +67,11 @@ function serializeRequestBody(req: Request): UndiciBodyInit | null {
   }
 
   if (Buffer.isBuffer(req.body)) {
-    return req.body as unknown as UndiciBodyInit;
+    return req.body;
   }
 
   try {
-    return JSON.stringify(req.body) as unknown as UndiciBodyInit;
+    return JSON.stringify(req.body);
   } catch {
     return null;
   }
@@ -88,9 +95,19 @@ export async function proxyAnthropicRequest(
   const upstreamUrl = buildUpstreamUrl(req.originalUrl);
   const startTime = Date.now();
 
+  // Generate unique timestamp by adding offsets for collisions
+  let timestampMs = Date.now();
+  if (timestampMs <= lastTimestampMs) {
+    timestampCounter++;
+    timestampMs = lastTimestampMs + timestampCounter;
+  } else {
+    timestampCounter = 0;
+    lastTimestampMs = timestampMs;
+  }
+
   const logEntry: InteractionLog = {
     id: interactionId,
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(timestampMs).toISOString(),
     method: req.method,
     path: req.path,
     query: extractQuery(req.originalUrl),
@@ -248,11 +265,9 @@ async function handleStreamResponse(
 ): Promise<void> {
   // Anthropic streams event-source chunks. We stream them straight back to the caller
   // while also capturing the text fragments for later inspection in the UI.
-  const stream = upstreamResponse.body
-    ? Readable.fromWeb(
-        upstreamResponse.body as unknown as NodeReadableStream<Uint8Array>
-      )
-    : null;
+  // Note: Type assertion needed due to Node.js web stream type incompatibilities
+  const webStream = upstreamResponse.body as NodeReadableStream<Uint8Array> | null;
+  const stream = webStream ? Readable.fromWeb(webStream) : null;
 
   if (!stream) {
     res.end();

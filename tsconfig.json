@@ -2,7 +2,7 @@
   // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
     // File Layout
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist",
 
     // Environment Settings
@@ -41,6 +41,6 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "shared/**/*.ts"],
   "exclude": ["client", "dist", "node_modules"]
 }
