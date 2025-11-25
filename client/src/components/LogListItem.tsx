@@ -1,7 +1,7 @@
 import type { AgentTagInfo, LogSummary } from '../../../shared/types';
-import { formatTimeOfDay, formatTimestamp, formatDuration } from '../utils/formatting';
+import { ENDPOINT_STYLES, getEndpointCategory } from '../hooks';
+import { formatDuration, formatTimeOfDay, formatTimestamp } from '../utils/formatting';
 import { buildTokenChips } from '../utils/tokenHelpers';
-import { getEndpointCategory, ENDPOINT_STYLES } from '../hooks';
 
 const FALLBACK_AGENT_TAG: AgentTagInfo = {
   id: 'untagged',
@@ -36,7 +36,7 @@ export default function LogListItem({
     maxDuration > 0
       ? Math.max((duration / maxDuration) * 100, duration > 0 ? 6 : 0)
       : 0;
-  const tokenChips = buildTokenChips(entry.tokenUsage?.totals);
+  const tokenChips = buildTokenChips(entry.tokenUsage?.system_totals);
   const endpointCategory = getEndpointCategory(entry.path);
   const endpointTheme = ENDPOINT_STYLES[endpointCategory];
   const startedAtLabel = formatTimeOfDay(entry.timestamp);

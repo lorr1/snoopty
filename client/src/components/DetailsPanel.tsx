@@ -1,14 +1,13 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type {
   AgentTagInfo,
   InteractionLog,
-  LogSummary,
-  TokenUsageSummary,
+  LogSummary
 } from '../../../shared/types';
-import { formatTimestamp, formatDuration, prettifyJson } from '../utils/formatting';
+import { formatDuration, formatTimestamp, prettifyJson } from '../utils/formatting';
 import {
-  buildTokenChips,
   buildCustomBreakdowns,
+  buildTokenChips,
   formatTokenCount,
 } from '../utils/tokenHelpers';
 import ChatPreviewModal, {
@@ -332,8 +331,8 @@ export default function DetailsPanel({
   );
 
   const selectedSystemChips = useMemo(
-    () => buildTokenChips(selectedTokenUsage?.totals),
-    [selectedTokenUsage?.totals]
+    () => buildTokenChips(selectedTokenUsage?.system_totals),
+    [selectedTokenUsage?.system_totals]
   );
 
   const selectedCustomBreakdowns = useMemo(
@@ -369,7 +368,7 @@ export default function DetailsPanel({
   const hasChatPreview = chatPreviewSegments.length > 0;
 
   const totalUsageTokens = useMemo(() => {
-    const totals = selectedTokenUsage?.totals;
+    const totals = selectedTokenUsage?.system_totals;
     if (!totals) return null;
     const values: Array<number | null | undefined> = [
       totals.inputTokens,
@@ -382,7 +381,7 @@ export default function DetailsPanel({
     );
     if (numeric.length === 0) return null;
     return numeric.reduce((acc, value) => acc + value, 0);
-  }, [selectedTokenUsage?.totals]);
+  }, [selectedTokenUsage?.system_totals]);
 
   const hasStreamChunks = (selectedLog?.response?.streamChunks?.length ?? 0) > 0;
   const responseToggleAvailable = Boolean(selectedLog?.response);
@@ -471,8 +470,8 @@ export default function DetailsPanel({
                   )}
                 </div>
                 <div className="token-summary__meta">
-                  Cache created {formatTokenCount(selectedTokenUsage.totals.cacheCreationInputTokens)} · Cache read{' '}
-                  {formatTokenCount(selectedTokenUsage.totals.cacheReadInputTokens)}
+                  Cache created {formatTokenCount(selectedTokenUsage.system_totals.cacheCreationInputTokens)} · Cache read{' '}
+                  {formatTokenCount(selectedTokenUsage.system_totals.cacheReadInputTokens)}
                 </div>
                 {totalUsageTokens !== null && (
                   <div className="token-summary__total">

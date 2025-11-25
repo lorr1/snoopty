@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "ts-node-dev --inspect --respawn --transpile-only src/server.ts",
     "dev:ui": "vite --host",
-    "build": "tsc && vite build",
+    "build": "npm run type-check && tsc && vite build",
     "build:server": "tsc",
-    "build:ui": "vite build",
+    "build:ui": "npm run type-check:ui && vite build",
     "start": "node dist/server.js",
     "preview:ui": "vite preview",
+    "type-check": "npm run type-check:server && npm run type-check:ui",
+    "type-check:server": "tsc --noEmit",
+    "type-check:ui": "tsc --project client/tsconfig.json --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1",
     "logs:tail": "tail -f logs/app.log"
   },
@@ -34,6 +37,8 @@
     "pino": "^10.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.6",
+    "recharts": "^3.4.1",
     "undici": "^7.16.0",
     "uuid": "^13.0.0"
   },

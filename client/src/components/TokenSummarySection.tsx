@@ -14,11 +14,11 @@ interface TokenSummarySectionProps {
 export default function TokenSummarySection({
   tokenUsage,
 }: TokenSummarySectionProps): JSX.Element {
-  const systemChips = buildTokenChips(tokenUsage.totals);
+  const systemChips = buildTokenChips(tokenUsage.system_totals);
   const customBreakdowns = buildCustomBreakdowns(tokenUsage.custom);
 
   // Calculate total usage tokens
-  const totals = tokenUsage.totals;
+  const totals = tokenUsage.system_totals;
   const values: Array<number | null | undefined> = [
     totals.inputTokens,
     totals.outputTokens,
@@ -49,8 +49,8 @@ export default function TokenSummarySection({
           )}
         </div>
         <div className="token-summary__meta">
-          Cache created {formatTokenCount(tokenUsage.totals.cacheCreationInputTokens)} · Cache read{' '}
-          {formatTokenCount(tokenUsage.totals.cacheReadInputTokens)}
+          Cache created {formatTokenCount(tokenUsage.system_totals.cacheCreationInputTokens)} · Cache read{' '}
+          {formatTokenCount(tokenUsage.system_totals.cacheReadInputTokens)}
         </div>
         {totalUsageTokens !== null && (
           <div className="token-summary__total">

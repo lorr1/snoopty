@@ -1,5 +1,4 @@
 import type { InteractionLog } from './logWriter';
-import { analyzeTokenUsage } from './tokenMetrics';
 
 /**
  * Build Parquet columnar data from the on-disk interaction logs. Each log becomes
@@ -127,6 +126,28 @@ async function collectColumns(records: ParquetRecord[]): Promise<ParquetColumn[]
     type: 'DOUBLE',
   };
 
+  // Tool metrics columns
+  const toolMetricsAvailableColumn: ParquetColumn = {
+    name: 'tools_available',
+    data: [],
+    type: 'INT32',
+  };
+  const toolMetricsCallsColumn: ParquetColumn = {
+    name: 'tool_calls',
+    data: [],
+    type: 'INT32',
+  };
+  const toolMetricsResultsColumn: ParquetColumn = {
+    name: 'tool_results',
+    data: [],
+    type: 'INT32',
+  };
+  const toolMetricsJsonColumn: ParquetColumn = {
+    name: 'tool_metrics_json',
+    data: [],
+    type: 'STRING',
+  };
+
   const columns: ParquetColumn[] = [
     fileNameColumn,
     timestampColumn,
@@ -152,13 +173,17 @@ async function collectColumns(records: ParquetRecord[]): Promise<ParquetColumn[]
     customToolColumn,
     customToolReturnColumn,
     customToolUseColumn,
+    toolMetricsAvailableColumn,
+    toolMetricsCallsColumn,
+    toolMetricsResultsColumn,
+    toolMetricsJsonColumn,
   ];
 
   for (const { fileName, entry } of records) {
-    const usage = await analyzeTokenUsage(entry);
-    const totals = usage?.totals;
-    const customInput = usage?.custom?.input?.segments;
-    const customOutput = usage?.custom?.output?.segments;
+    // Token usage is now stored directly on the entry by MetricsWorker
+    const totals = entry.tokenUsage.system_totals;
+    const customInput = entry.tokenUsage.custom?.input?.segments;
+    const customOutput = entry.tokenUsage.custom?.output?.segments;
     let modelString: string | null = null;
     if (
       entry.request.body &&
@@ -208,6 +233,13 @@ async function collectColumns(records: ParquetRecord[]): Promise<ParquetColumn[]
     customToolColumn.data.push(customInput?.tool?.tokens ?? null);
     customToolReturnColumn.data.push(customInput?.tool_return?.tokens ?? null);
     customToolUseColumn.data.push(toolUseTotal || null);
+
+    // Tool metrics
+    const toolMetrics = entry.toolMetrics;
+    toolMetricsAvailableColumn.data.push(toolMetrics?.totalToolsAvailable ?? null);
+    toolMetricsCallsColumn.data.push(toolMetrics?.totalToolCalls ?? null);
+    toolMetricsResultsColumn.data.push(toolMetrics?.totalToolResults ?? null);
+    toolMetricsJsonColumn.data.push(toolMetrics ? safeString(toolMetrics) : null);
   }
 
   return columns;

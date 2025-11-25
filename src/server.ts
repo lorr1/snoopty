@@ -6,6 +6,11 @@ import { ERROR_MESSAGES } from './constants';
 import { logger } from './logger';
 import { healthRouter, logsRouter, proxyRouter } from './routes';
 import { errorHandler } from './middleware/errorHandler';
+import { globalMetricsRegistry } from './metrics/MetricsAnalyzer';
+import { ToolMetricsAnalyzer } from './metrics/ToolMetricsAnalyzer';
+import { TokenBreakdownAnalyzer } from './metrics/TokenBreakdownAnalyzer';
+import { AgentTagAnalyzer } from './metrics/AgentTagAnalyzer';
+import { startMetricsWorker, stopMetricsWorker } from './workers/metricsWorker';
 
 /**
  * The Express bootstrap lives in this file. We wire up:
@@ -80,6 +85,40 @@ async function bootstrap(): Promise<void> {
   // Validate configuration up front so we fail fast if required env vars are missing.
   validateConfig();
 
+  logger.info('Bootstrap: Registering metrics analyzers');
+
+  // Register all metrics analyzers
+  try {
+    const analyzers = [
+      new TokenBreakdownAnalyzer(),
+      new AgentTagAnalyzer(),
+      new ToolMetricsAnalyzer(),
+    ];
+
+    for (const analyzer of analyzers) {
+      globalMetricsRegistry.register(analyzer);
+      logger.info({ analyzer: analyzer.name }, 'Bootstrap: Registered analyzer');
+    }
+  } catch (error) {
+    logger.error({ error }, 'Bootstrap: Error registering metrics analyzers');
+    throw error;
+  }
+
+  logger.info('Bootstrap: Starting metrics worker');
+
+  // Start the metrics worker
+  try {
+    await startMetricsWorker({
+      processExisting: true,
+      watchForNew: true,
+      pollInterval: 5000,
+    });
+    logger.info('Bootstrap: Metrics worker started successfully');
+  } catch (error) {
+    logger.error({ error }, 'Bootstrap: Error starting metrics worker');
+    throw error;
+  }
+
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', true);
@@ -99,8 +138,19 @@ async function bootstrap(): Promise<void> {
     );
   });
 
-  const shutdown = (signal: string) => {
+  const shutdown = async (signal: string) => {
     logger.info({ signal }, 'shutting down proxy server');
+
+    // Stop metrics worker first
+    try {
+      logger.info('Shutdown: Stopping metrics worker');
+      await stopMetricsWorker();
+      logger.info('Shutdown: Metrics worker stopped');
+    } catch (error) {
+      logger.error({ error }, 'Shutdown: Error stopping metrics worker');
+    }
+
+    // Then close server
     server.close((err) => {
       if (err) {
         logger.error({ err }, 'error while closing server');

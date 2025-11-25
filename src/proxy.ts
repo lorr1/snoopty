@@ -1,14 +1,14 @@
-import type { Request, Response as ExpressResponse } from 'express';
+import { randomUUID } from 'crypto';
+import type { Response as ExpressResponse, Request } from 'express';
+import { Readable } from 'stream';
+import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import type {
   RequestInit as UndiciRequestInit,
   Response as UndiciResponse,
 } from 'undici';
-import type { ReadableStream as NodeReadableStream } from 'stream/web';
-import { randomUUID } from 'crypto';
-import { Readable } from 'stream';
 import { fetch } from 'undici';
+import type { TokenUsageTotals } from '../shared/types';
 import { appConfig } from './config';
-import { deriveAgentTag } from './agentTagger';
 import { logger } from './logger';
 import { InteractionLog, sanitizeHeaders, writeInteractionLog } from './logWriter';
 import { AnthropicStreamAggregator } from './streamAggregator';
@@ -115,8 +115,15 @@ export async function proxyAnthropicRequest(
       headers: sanitizeHeaders(req.headers as Record<string, string | string[] | undefined>),
       body: req.body,
     },
+    tokenUsage: {
+      system_totals: {
+        inputTokens: null,
+        outputTokens: null,
+        cacheCreationInputTokens: null,
+        cacheReadInputTokens: null,
+      },
+    },
   };
-  logEntry.agentTag = deriveAgentTag(logEntry.request.body);
 
   const controller = new AbortController();
   // When the client disconnects we abort the upstream fetch so we do not leak sockets.
@@ -231,6 +238,35 @@ export async function proxyAnthropicRequest(
   }
 }
 
+/**
+ * Extracts token usage from Anthropic API response body
+ */
+function extractTokenUsage(body: unknown): TokenUsageTotals | null {
+  if (!body || typeof body !== 'object') {
+    return null;
+  }
+
+  const record = body as Record<string, unknown>;
+  const usage = record.usage;
+
+  if (!usage || typeof usage !== 'object') {
+    return null;
+  }
+
+  const usageRecord = usage as Record<string, unknown>;
+
+  return {
+    inputTokens: typeof usageRecord.input_tokens === 'number' ? usageRecord.input_tokens : null,
+    outputTokens: typeof usageRecord.output_tokens === 'number' ? usageRecord.output_tokens : null,
+    cacheCreationInputTokens: typeof usageRecord.cache_creation_input_tokens === 'number'
+      ? usageRecord.cache_creation_input_tokens
+      : null,
+    cacheReadInputTokens: typeof usageRecord.cache_read_input_tokens === 'number'
+      ? usageRecord.cache_read_input_tokens
+      : null,
+  };
+}
+
 async function handleStandardResponse(
   upstreamResponse: UndiciResponse,
   res: ExpressResponse,
@@ -248,7 +284,15 @@ async function handleStandardResponse(
 
   if (contentType.includes('application/json')) {
     try {
-      logEntry.response.body = JSON.parse(buffer.toString('utf8'));
+      const parsedBody = JSON.parse(buffer.toString('utf8'));
+      logEntry.response.body = parsedBody;
+
+      // Extract token usage from response
+      const systemTotals = extractTokenUsage(parsedBody);
+      if (systemTotals) {
+        logEntry.tokenUsage.system_totals = systemTotals;
+      }
+
       return;
     } catch {
       // fall through to plain text representation
@@ -307,6 +351,12 @@ async function handleStreamResponse(
     const aggregatedMessage = aggregator.finalize();
     if (aggregatedMessage) {
       logEntry.response.body = aggregatedMessage;
+
+      // Extract token usage from aggregated message
+      const systemTotals = extractTokenUsage(aggregatedMessage);
+      if (systemTotals) {
+        logEntry.tokenUsage.system_totals = systemTotals;
+      }
     }
   }
 }

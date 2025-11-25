@@ -141,23 +141,8 @@ export function useLogData(): UseLogDataReturn {
       }
       const data = (await response.json()) as {
         processed: number;
-        updatedBodies: number;
-        updatedUsage: number;
-        updatedTags?: number;
-        failed: Array<{ fileName: string; error: string }>;
       };
-      const summaryParts = [
-        `Processed ${data.processed} log${data.processed === 1 ? '' : 's'}`,
-        `${data.updatedBodies} body updates`,
-        `${data.updatedUsage} usage updates`,
-      ];
-      if (typeof data.updatedTags === 'number') {
-        summaryParts.push(`${data.updatedTags} tag updates`);
-      }
-      if (data.failed.length > 0) {
-        summaryParts.push(`${data.failed.length} failed`);
-      }
-      setRecomputeMessage(summaryParts.join(' · '));
+      setRecomputeMessage(`Recomputed metrics for ${data.processed} log${data.processed === 1 ? '' : 's'}`);
       await fetchLogs();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error during recompute';

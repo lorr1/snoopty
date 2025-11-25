@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 interface AppHeaderProps {
   isLoading: boolean;
   hasFirstPageLoaded: boolean;
@@ -16,7 +18,7 @@ export default function AppHeader({
   recomputeMessage,
   onRefresh,
   onRecompute,
-}: AppHeaderProps): JSX.Element {
+}: AppHeaderProps) {
   return (
     <header className="app-header">
       <div className="app-brand">
@@ -24,6 +26,9 @@ export default function AppHeader({
         <p className="app-tagline">Anthropic proxy inspector</p>
       </div>
       <div className="header-actions">
+        <Link to="/dashboard" className="secondary-button">
+          Dashboard
+        </Link>
         <button
           type="button"
           className="secondary-button"

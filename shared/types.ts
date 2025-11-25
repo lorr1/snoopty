@@ -49,23 +49,7 @@ export type TokenUsageSegmentId =
   | 'tool_return'
   | 'tool_use';
 
-export type InputSegmentId = 'system' | 'user' | 'tool' | 'tool_return';
-export type OutputSegmentId = 'assistant' | 'thinking' | 'tool_use';
-
-export interface TokenUsageSegment {
-  id: TokenUsageSegmentId;
-  label: string;
-  tokens: number | null;
-  methodology: TokenMethodology;
-}
-
 export type TokenMethodology = 'anthropic' | 'estimate' | 'unknown';
-
-export interface TokenUsageSource {
-  type: 'anthropic-usage';
-  event: string;
-  usage: Record<string, unknown>;
-}
 
 export interface TokenCountDetail {
   tokens: number | null;
@@ -90,10 +74,29 @@ export interface CustomTokenUsage {
 }
 
 export interface TokenUsageSummary {
-  totals: TokenUsageTotals;
-  segments: TokenUsageSegment[];
-  sources: TokenUsageSource[];
+  system_totals: TokenUsageTotals;
   custom?: CustomTokenUsage;
+}
+
+// =============================================================================
+// Tool Metrics Types
+// =============================================================================
+
+export interface ToolUsageDetail {
+  toolName: string;
+  callCount: number;
+  totalReturnTokens: number;
+  avgReturnTokens: number;
+  maxReturnTokens: number;
+  minReturnTokens: number | null;
+  returnTokenCounts: number[];
+}
+
+export interface ToolMetricsSummary {
+  totalToolsAvailable: number;
+  totalToolCalls: number;
+  totalToolResults: number;
+  tools: ToolUsageDetail[];
 }
 
 // =============================================================================
@@ -118,8 +121,9 @@ export interface InteractionLog {
     streamChunks?: string[];
     error?: string;
   };
-  tokenUsage?: TokenUsageSummary;
+  tokenUsage: TokenUsageSummary;
   agentTag?: AgentTagInfo;
+  toolMetrics?: ToolMetricsSummary;
 }
 
 export interface LogSummary {
@@ -134,6 +138,62 @@ export interface LogSummary {
   error?: string;
   tokenUsage?: TokenUsageSummary;
   agentTag?: AgentTagInfo;
+  toolMetrics?: ToolMetricsSummary;
+}
+
+// =============================================================================
+// Analytics Types
+// =============================================================================
+
+/**
+ * Filters for querying metrics.
+ */
+export interface MetricsFilters {
+  /** Start timestamp (ISO 8601) */
+  startTime?: string;
+  /** End timestamp (ISO 8601) */
+  endTime?: string;
+  /** Filter by agent tag IDs */
+  agentTags?: AgentTagId[];
+  /** Filter by endpoint type */
+  endpointType?: 'messages' | 'other' | 'all';
+}
+
+/**
+ * Flattened tool result row for charting.
+ * One row per individual tool result.
+ */
+export interface ToolResultRow {
+  logId: string;
+  timestamp: string;
+  toolName: string;
+  returnTokens: number;
+  agentTag?: string | undefined;
+  model?: string | undefined;
+}
+
+/**
+ * Flattened tool call row for charting.
+ * One row per tool per log.
+ */
+export interface ToolCallRow {
+  logId: string;
+  timestamp: string;
+  toolName: string;
+  callCount: number;
+  agentTag?: string | undefined;
+  model?: string | undefined;
+}
+
+/**
+ * Response containing filtered tool usage data.
+ */
+export interface ToolMetricsDataResponse {
+  results: ToolResultRow[];
+  calls: ToolCallRow[];
+  filters: MetricsFilters;
+  totalLogs: number;
+  logsWithTools: number;
 }
 
 // =============================================================================

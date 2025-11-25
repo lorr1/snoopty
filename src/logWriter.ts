@@ -9,17 +9,12 @@ export type {
   AgentTagInfo,
   AgentTagTheme,
   CustomTokenUsage,
-  InputSegmentId,
   InteractionLog,
-  OutputSegmentId,
   TokenBreakdown,
   TokenCountDetail,
   TokenMethodology,
-  TokenUsageSegment,
-  TokenUsageSegmentId,
-  TokenUsageSource,
   TokenUsageSummary,
-  TokenUsageTotals,
+  TokenUsageTotals
 } from '../shared/types';
 
 import type { InteractionLog } from '../shared/types';

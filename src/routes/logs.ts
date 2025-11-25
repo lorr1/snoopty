@@ -34,6 +34,45 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// POST /logs/batch - Fetch multiple logs by filenames
+router.post('/batch', async (req, res, next) => {
+  try {
+    const body = req.body as { fileNames?: unknown };
+    const fileNames = Array.isArray(body?.fileNames)
+      ? body.fileNames.filter((value): value is string => typeof value === 'string')
+      : [];
+
+    if (fileNames.length === 0) {
+      res.status(400).json({ error: 'fileNames array is required.' });
+      return;
+    }
+
+    logger.info({ count: fileNames.length }, 'batch logs request received');
+
+    // Fetch all logs in parallel
+    const logsPromises = fileNames.map(async (fileName) => {
+      const log = await getLog(fileName);
+      return log;
+    });
+
+    const logs = await Promise.all(logsPromises);
+    const validLogs = logs.filter((log) => log !== null);
+    const missing = fileNames.filter((_fileName, idx) => logs[idx] === null);
+
+    logger.info(
+      { requested: fileNames.length, found: validLogs.length, missing: missing.length },
+      'batch logs result'
+    );
+
+    res.json({
+      logs: validLogs,
+      missing: missing.length > 0 ? missing : undefined,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /logs/:fileName
 router.get('/:fileName', async (req, res, next) => {
   try {

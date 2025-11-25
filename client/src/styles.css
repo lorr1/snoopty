@@ -70,7 +70,8 @@ html {
   font-weight: 500;
 }
 
-button {
+button,
+a.secondary-button {
   background-color: #3b82f6;
   border: none;
   border-radius: 8px;
@@ -79,6 +80,8 @@ button {
   color: #ffffff;
   cursor: pointer;
   transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
 }
 
 button:disabled {
@@ -97,7 +100,8 @@ button:not(:disabled):hover {
   color: #0f172a;
 }
 
-.secondary-button:not(:disabled):hover {
+.secondary-button:not(:disabled):hover,
+a.secondary-button:hover {
   background-color: #cbd5f5;
 }
 
@@ -1327,4 +1331,156 @@ button:not(:disabled):hover {
 .chat-preview-card--other {
   border-left: 4px solid #94a3b8;
   background: #f8fafc;
+}
+
+/* ==========================================================================
+   Dashboard
+   ========================================================================== */
+
+.dashboard-container {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  font-size: 2rem;
+  color: #0f172a;
+  margin: 0;
+}
+
+.back-link {
+  color: #3b82f6;
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.back-link:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.dashboard-loading,
+.dashboard-error,
+.dashboard-empty {
+  text-align: center;
+  padding: 3rem;
+  color: #64748b;
+  font-size: 1.1rem;
+}
+
+.dashboard-error {
+  color: #ef4444;
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dashboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.dashboard-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.chart-container {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.chart-container h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  color: #0f172a;
+}
+
+.chart-empty {
+  text-align: center;
+  padding: 2rem;
+  color: #94a3b8;
+  font-size: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.dashboard-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.dashboard-section h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  color: #0f172a;
+}
+
+.dashboard-section details {
+  margin-top: 1rem;
+}
+
+.dashboard-section summary {
+  cursor: pointer;
+  color: #3b82f6;
+  font-weight: 500;
+  padding: 0.5rem;
+  background: #f1f5f9;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.dashboard-section summary:hover {
+  background: #e2e8f0;
+}
+
+.dashboard-section pre {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  margin-top: 1rem;
 }

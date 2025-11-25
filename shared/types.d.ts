@@ -78,7 +78,7 @@ export interface InteractionLog {
         streamChunks?: string[];
         error?: string;
     };
-    tokenUsage?: TokenUsageSummary;
+    tokenUsage: TokenUsageSummary;
     agentTag?: AgentTagInfo;
 }
 export interface LogSummary {

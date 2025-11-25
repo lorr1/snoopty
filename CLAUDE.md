@@ -44,17 +44,30 @@ No test framework is configured yet (`npm test` is a placeholder).
 
 ### Backend Modules (`src/`)
 
-- `server.ts` - Express bootstrap, routes, middleware
+- `server.ts` - Express bootstrap, routes, middleware, analyzer registration
 - `proxy.ts` - Reverse proxy to Anthropic
 - `logStore.ts` - Log CRUD with cursor-based pagination
 - `logWriter.ts` - Persistence, InteractionLog type definitions
 - `streamAggregator.ts` - SSE/NDJSON parsing for streaming responses
-- `tokenMetrics.ts` - Token usage extraction from responses
-- `tokenCounting.ts` - Per-role token estimation
 - `agentTagger.ts` - Regex-based agent detection from system prompts
 - `parquetExporter.ts` - Export logs to Parquet format
 - `config.ts` - Environment configuration with defaults
 - `logger.ts` - Pino structured logging setup
+
+### Metrics System (`src/metrics/`)
+
+- `MetricsAnalyzer.ts` - Base interface and registry for pluggable metrics analyzers
+- `TokenBreakdownAnalyzer.ts` - Per-role token counting using Anthropic's API
+- `ToolMetricsAnalyzer.ts` - Tool usage analysis (calls, results, per-tool stats)
+- `AgentTagAnalyzer.ts` - Agent detection and tagging
+
+### Workers (`src/workers/`)
+
+- `metricsWorker.ts` - Background worker that watches log files and computes all metrics
+
+### Utilities (`src/utils/`)
+
+- `tokenCounter.ts` - Reusable token counting functions using Anthropic's API
 
 ### Frontend (`client/src/`)
 
@@ -88,9 +101,11 @@ APP_LOG_FILE        # Default: logs/app.log (empty string disables)
 
 ## Key Implementation Details
 
-**Agent Tagging**: `src/agentTagger.ts` defines regex rules in `TAG_RULES` array. Each tag has a theme (colors). Add new rules there for new agent types.
+**Metrics Framework**: Pluggable analyzer system (`src/metrics/`) with background worker (`src/workers/metricsWorker.ts`). All metrics are computed asynchronously after logs are written. Analyzers are registered on bootstrap in `src/server.ts`.
 
-**Token Metrics**: Combines Anthropic-reported counts with estimates. `tokenMetrics.ts` extracts from responses, `tokenCounting.ts` estimates per-role breakdown.
+**Token Counting**: Uses Anthropic's official token counting API (`src/utils/tokenCounter.ts`) to get accurate per-role breakdowns. The `TokenBreakdownAnalyzer` runs all counts in parallel for performance.
+
+**Agent Tagging**: `src/agentTagger.ts` defines regex rules in `TAG_RULES` array. Each tag has a theme (colors). Add new rules there for new agent types.
 
 **Stream Aggregation**: `streamAggregator.ts` reconstructs JSON from SSE chunks, handles text/tool_use/thinking content blocks. Complex edge cases—review carefully before modifying.
 
@@ -104,4 +119,10 @@ APP_LOG_FILE        # Default: logs/app.log (empty string disables)
 
 **Adding agent detection rule**: Add to `TAG_RULES` in `src/agentTagger.ts` with matchers and theme
 
-**Modifying token metrics**: Update `src/tokenMetrics.ts` (aggregation) and `src/tokenCounting.ts` (estimation), then update types in `src/logWriter.ts` and `client/src/App.tsx`
+**Adding a new metrics analyzer**:
+1. Create analyzer in `src/metrics/` implementing `MetricsAnalyzer<T>`
+2. Register it in `src/server.ts` bootstrap function
+3. Add corresponding field to `InteractionLog` type in `shared/types.ts`
+4. Update `metricsWorker.ts` to check for and persist the new metric
+
+**Modifying token counting**: Update functions in `src/utils/tokenCounter.ts`, which are used by `TokenBreakdownAnalyzer`
