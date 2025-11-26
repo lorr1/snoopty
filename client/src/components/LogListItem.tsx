@@ -30,7 +30,7 @@ export default function LogListItem({
   maxDuration,
   onClick,
   onToggleSelection,
-}: LogListItemProps): JSX.Element {
+}: LogListItemProps) {
   const duration = entry.durationMs ?? 0;
   const percent =
     maxDuration > 0

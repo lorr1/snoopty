@@ -110,18 +110,33 @@ async function collectColumns(records: ParquetRecord[]): Promise<ParquetColumn[]
     data: [],
     type: 'DOUBLE',
   };
-  const customToolColumn: ParquetColumn = {
-    name: 'custom_tool_tokens',
+  const customToolMcpColumn: ParquetColumn = {
+    name: 'custom_tool_mcp_tokens',
     data: [],
     type: 'DOUBLE',
   };
-  const customToolReturnColumn: ParquetColumn = {
-    name: 'custom_tool_return_tokens',
+  const customToolRegularColumn: ParquetColumn = {
+    name: 'custom_tool_regular_tokens',
     data: [],
     type: 'DOUBLE',
   };
-  const customToolUseColumn: ParquetColumn = {
-    name: 'custom_tool_use_tokens',
+  const customToolReturnMcpColumn: ParquetColumn = {
+    name: 'custom_tool_return_mcp_tokens',
+    data: [],
+    type: 'DOUBLE',
+  };
+  const customToolReturnRegularColumn: ParquetColumn = {
+    name: 'custom_tool_return_regular_tokens',
+    data: [],
+    type: 'DOUBLE',
+  };
+  const customToolUseMcpColumn: ParquetColumn = {
+    name: 'custom_tool_use_mcp_tokens',
+    data: [],
+    type: 'DOUBLE',
+  };
+  const customToolUseRegularColumn: ParquetColumn = {
+    name: 'custom_tool_use_regular_tokens',
     data: [],
     type: 'DOUBLE',
   };
@@ -148,6 +163,28 @@ async function collectColumns(records: ParquetRecord[]): Promise<ParquetColumn[]
     type: 'STRING',
   };
 
+  // Agent tag columns
+  const agentTagIdColumn: ParquetColumn = {
+    name: 'agent_tag_id',
+    data: [],
+    type: 'STRING',
+  };
+  const agentTagLabelColumn: ParquetColumn = {
+    name: 'agent_tag_label',
+    data: [],
+    type: 'STRING',
+  };
+  const agentTagDescriptionColumn: ParquetColumn = {
+    name: 'agent_tag_description',
+    data: [],
+    type: 'STRING',
+  };
+  const agentTagThemeJsonColumn: ParquetColumn = {
+    name: 'agent_tag_theme_json',
+    data: [],
+    type: 'STRING',
+  };
+
   const columns: ParquetColumn[] = [
     fileNameColumn,
     timestampColumn,
@@ -170,13 +207,20 @@ async function collectColumns(records: ParquetRecord[]): Promise<ParquetColumn[]
     customUserColumn,
     customAssistantColumn,
     customThinkingColumn,
-    customToolColumn,
-    customToolReturnColumn,
-    customToolUseColumn,
+    customToolMcpColumn,
+    customToolRegularColumn,
+    customToolReturnMcpColumn,
+    customToolReturnRegularColumn,
+    customToolUseMcpColumn,
+    customToolUseRegularColumn,
     toolMetricsAvailableColumn,
     toolMetricsCallsColumn,
     toolMetricsResultsColumn,
     toolMetricsJsonColumn,
+    agentTagIdColumn,
+    agentTagLabelColumn,
+    agentTagDescriptionColumn,
+    agentTagThemeJsonColumn,
   ];
 
   for (const { fileName, entry } of records) {
@@ -224,15 +268,23 @@ async function collectColumns(records: ParquetRecord[]): Promise<ParquetColumn[]
 
     customSystemColumn.data.push(customInput?.system?.tokens ?? null);
     customUserColumn.data.push(customInput?.user?.tokens ?? null);
-    // Combine input (history) and output tokens for assistant, thinking, tool_use
+    // Combine input (history) and output tokens for assistant, thinking
     const assistantTotal = (customInput?.assistant?.tokens ?? 0) + (customOutput?.assistant?.tokens ?? 0);
     const thinkingTotal = (customInput?.thinking?.tokens ?? 0) + (customOutput?.thinking?.tokens ?? 0);
-    const toolUseTotal = (customInput?.tool_use?.tokens ?? 0) + (customOutput?.tool_use?.tokens ?? 0);
     customAssistantColumn.data.push(assistantTotal || null);
     customThinkingColumn.data.push(thinkingTotal || null);
-    customToolColumn.data.push(customInput?.tool?.tokens ?? null);
-    customToolReturnColumn.data.push(customInput?.tool_return?.tokens ?? null);
-    customToolUseColumn.data.push(toolUseTotal || null);
+
+    // Tool-related tokens split by MCP vs Regular
+    customToolMcpColumn.data.push(customInput?.tool_mcp?.tokens ?? null);
+    customToolRegularColumn.data.push(customInput?.tool_regular?.tokens ?? null);
+    customToolReturnMcpColumn.data.push(customInput?.tool_return_mcp?.tokens ?? null);
+    customToolReturnRegularColumn.data.push(customInput?.tool_return_regular?.tokens ?? null);
+
+    // Combine input and output tool_use tokens, split by MCP vs Regular
+    const toolUseMcpTotal = (customInput?.tool_use_mcp?.tokens ?? 0) + (customOutput?.tool_use_mcp?.tokens ?? 0);
+    const toolUseRegularTotal = (customInput?.tool_use_regular?.tokens ?? 0) + (customOutput?.tool_use_regular?.tokens ?? 0);
+    customToolUseMcpColumn.data.push(toolUseMcpTotal || null);
+    customToolUseRegularColumn.data.push(toolUseRegularTotal || null);
 
     // Tool metrics
     const toolMetrics = entry.toolMetrics;
@@ -240,6 +292,13 @@ async function collectColumns(records: ParquetRecord[]): Promise<ParquetColumn[]
     toolMetricsCallsColumn.data.push(toolMetrics?.totalToolCalls ?? null);
     toolMetricsResultsColumn.data.push(toolMetrics?.totalToolResults ?? null);
     toolMetricsJsonColumn.data.push(toolMetrics ? safeString(toolMetrics) : null);
+
+    // Agent tag
+    const agentTag = entry.agentTag;
+    agentTagIdColumn.data.push(agentTag?.id ?? null);
+    agentTagLabelColumn.data.push(agentTag?.label ?? null);
+    agentTagDescriptionColumn.data.push(agentTag?.description ?? null);
+    agentTagThemeJsonColumn.data.push(agentTag?.theme ? safeString(agentTag.theme) : null);
   }
 
   return columns;

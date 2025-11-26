@@ -14,12 +14,14 @@ interface FilterControlsProps {
   endpointFilter: EndpointFilter;
   agentFilter: AgentFilter;
   agentFilterOptions: Array<{ id: AgentFilter; label: string }>;
+  logIdSearch: string;
   selectionActive: boolean;
   filteredFileNamesCount: number;
   isExporting: boolean;
   onTimeWindowChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onEndpointFilterChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   onAgentFilterChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  onLogIdSearchChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onClearTimeSelection: () => void;
   onExportFiltered: () => void;
 }
@@ -29,15 +31,17 @@ export default function FilterControls({
   endpointFilter,
   agentFilter,
   agentFilterOptions,
+  logIdSearch,
   selectionActive,
   filteredFileNamesCount,
   isExporting,
   onTimeWindowChange,
   onEndpointFilterChange,
   onAgentFilterChange,
+  onLogIdSearchChange,
   onClearTimeSelection,
   onExportFiltered,
-}: FilterControlsProps): JSX.Element {
+}: FilterControlsProps) {
   return (
     <div className="timeseries-controls">
       <div className="timeseries-controls__left">
@@ -71,6 +75,15 @@ export default function FilterControls({
               </option>
             ))}
           </select>
+        </label>
+        <label className="timeseries-controls__search">
+          Log ID
+          <input
+            type="text"
+            value={logIdSearch}
+            onChange={onLogIdSearchChange}
+            placeholder="Search..."
+          />
         </label>
         <button
           type="button"

@@ -34,23 +34,24 @@ html {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.25rem 2rem;
+  padding: 0.5rem 2rem;
   border-bottom: 1px solid #e2e8f0;
   background: #ffffff;
   position: sticky;
   top: 0;
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .app-brand h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   letter-spacing: 0.02em;
 }
 
 .app-tagline {
-  margin: 0.2rem 0 0;
-  font-size: 0.9rem;
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
   color: #64748b;
 }
 
@@ -70,14 +71,24 @@ html {
   font-weight: 500;
 }
 
-button,
-a.secondary-button {
+button {
   background-color: #3b82f6;
   border: none;
   border-radius: 8px;
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+a.secondary-button {
+  background-color: #e2e8f0;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  color: #0f172a;
   cursor: pointer;
   transition: background-color 0.2s ease, box-shadow 0.2s ease;
   text-decoration: none;
@@ -130,11 +141,11 @@ a.secondary-button:hover {
 .app-main {
   display: grid;
   grid-template-columns: 380px 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 1.5rem;
-  padding: 1.5rem 2rem 2rem;
+  padding: 1rem 2rem 1.5rem;
   flex: 1;
   min-height: 0;
-  height: 100%;
   overflow: hidden;
 }
 
@@ -142,7 +153,8 @@ a.secondary-button:hover {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .timeseries-controls {
@@ -205,6 +217,29 @@ a.secondary-button:hover {
   line-height: 1;
 }
 
+.timeseries-controls__search {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.timeseries-controls__search input {
+  min-width: 12rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #0f172a;
+  background: #ffffff;
+  line-height: 1;
+}
+
+.timeseries-controls__search input::placeholder {
+  color: #94a3b8;
+}
+
 .timeline-panel,
 .details-panel {
   background: #ffffff;
@@ -214,10 +249,8 @@ a.secondary-button:hover {
   flex-direction: column;
   min-height: 0;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
-}
-
-.timeline-panel {
   height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -426,7 +459,7 @@ a.secondary-button:hover {
 
 .timeline-brush {
   position: relative;
-  height: 72px;
+  height: 60px;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.9), rgba(241, 245, 249, 0.9));
@@ -467,9 +500,9 @@ a.secondary-button:hover {
 
 .timeline-brush__dot {
   position: absolute;
-  bottom: 10px;
+  bottom: 8px;
   width: 4px;
-  height: 40px;
+  height: 35px;
   border-radius: 999px;
   transform: translateX(-50%);
   background: rgba(148, 163, 184, 0.5);
@@ -566,20 +599,47 @@ a.secondary-button:hover {
 }
 
 .token-summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  gap: 1rem;
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.5rem;
 }
 
 .token-summary__section {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1rem;
   background: #ffffff;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
+}
+
+.token-summary__toggle {
+  width: 100%;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  text-align: left;
+  transition: background-color 0.2s;
+  margin-bottom: 0.5rem;
+}
+
+.token-summary__toggle:hover {
+  background-color: #f1f5f9;
+}
+
+.token-summary__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: 0.75rem;
 }
 
@@ -748,7 +808,7 @@ a.secondary-button:hover {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .details-header h2 {
@@ -1148,6 +1208,12 @@ a.secondary-button:hover {
   display: flex;
   flex-direction: column;
   pointer-events: auto;
+  transition: width 0.3s ease, max-height 0.3s ease;
+}
+
+.chat-preview-modal__panel--expanded {
+  width: min(98vw, 2000px);
+  max-height: 96vh;
 }
 
 .chat-preview-modal__header {
@@ -1200,6 +1266,13 @@ a.secondary-button:hover {
   font-size: 0.95rem;
 }
 
+.chat-preview-modal__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.chat-preview-modal__expand,
 .chat-preview-modal__close {
   border: 1px solid #cbd5f5;
   background: #ffffff;
@@ -1212,6 +1285,7 @@ a.secondary-button:hover {
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
+.chat-preview-modal__expand:hover,
 .chat-preview-modal__close:hover {
   background: #e0ecff;
   border-color: #93c5fd;

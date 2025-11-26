@@ -9,7 +9,7 @@
     "build": "npm run type-check && tsc && vite build",
     "build:server": "tsc",
     "build:ui": "npm run type-check:ui && vite build",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "preview:ui": "vite preview",
     "type-check": "npm run type-check:server && npm run type-check:ui",
     "type-check:server": "tsc --noEmit",

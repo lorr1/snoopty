@@ -14,7 +14,8 @@ export type AgentTagId =
   | 'framework-detector'
   | 'language-detector'
   | 'conversation-summarizer'
-  | 'unknown';
+  | 'unknown'
+  | 'untagged';
 
 export interface AgentTagTheme {
   text: string;
@@ -41,13 +42,16 @@ export interface TokenUsageTotals {
 }
 
 export type TokenUsageSegmentId =
-  | 'system'
-  | 'user'
-  | 'assistant'
-  | 'thinking'
-  | 'tool'
-  | 'tool_return'
-  | 'tool_use';
+  | 'system'              // System prompts
+  | 'user'                // User messages (text content)
+  | 'assistant'           // Assistant messages (text content)
+  | 'thinking'            // Extended thinking content
+  | 'tool_mcp'            // MCP tool definitions
+  | 'tool_regular'        // Regular tool definitions
+  | 'tool_return_mcp'     // MCP tool results/returns
+  | 'tool_return_regular' // Regular tool results/returns
+  | 'tool_use_mcp'        // MCP tool use blocks
+  | 'tool_use_regular';   // Regular tool use blocks
 
 export type TokenMethodology = 'anthropic' | 'estimate' | 'unknown';
 
@@ -191,14 +195,19 @@ export interface ToolUsageRow {
   input_user_tokens: number;
   input_assistant_tokens: number;
   input_thinking_tokens: number;
-  input_tool_definition_tokens: number;
-  input_tool_use_tokens: number;
-  input_tool_return_tokens: number;
   output_assistant_tokens: number;
   output_thinking_tokens: number;
-  output_tool_use_tokens: number;
   agentTag?: string | undefined;
   model?: string | undefined;
+  // MCP vs Regular breakdown
+  input_tool_definition_mcp_tokens?: number;
+  input_tool_definition_regular_tokens?: number;
+  input_tool_use_mcp_tokens?: number;
+  input_tool_use_regular_tokens?: number;
+  input_tool_return_mcp_tokens?: number;
+  input_tool_return_regular_tokens?: number;
+  output_tool_use_mcp_tokens?: number;
+  output_tool_use_regular_tokens?: number;
 }
 
 /**

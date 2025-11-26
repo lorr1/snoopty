@@ -25,14 +25,17 @@ interface InputBuckets {
   user: string[];
   assistant: string[];
   thinking: string[];
-  tool_return: string[];
-  tool_use: string[];
+  tool_return_mcp: string[];
+  tool_return_regular: string[];
+  tool_use_mcp: string[];
+  tool_use_regular: string[];
 }
 
 interface OutputBuckets {
   assistant: string[];
   thinking: string[];
-  tool_use: string[];
+  tool_use_mcp: string[];
+  tool_use_regular: string[];
 }
 
 const EMPTY_INPUT_BUCKETS = (): InputBuckets => ({
@@ -40,18 +43,49 @@ const EMPTY_INPUT_BUCKETS = (): InputBuckets => ({
   user: [],
   assistant: [],
   thinking: [],
-  tool_return: [],
-  tool_use: [],
+  tool_return_mcp: [],
+  tool_return_regular: [],
+  tool_use_mcp: [],
+  tool_use_regular: [],
 });
 
 const EMPTY_OUTPUT_BUCKETS = (): OutputBuckets => ({
   assistant: [],
   thinking: [],
-  tool_use: [],
+  tool_use_mcp: [],
+  tool_use_regular: [],
 });
 
 export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary> {
   name = 'token-breakdown';
+
+  /**
+   * Classify tool as MCP or regular based on naming convention.
+   * MCP tools start with 'mcp__'.
+   */
+  private classifyToolType(toolName: string): 'mcp' | 'regular' {
+    return toolName.startsWith('mcp__') ? 'mcp' : 'regular';
+  }
+
+  /**
+   * Separate tools array into MCP and Regular arrays
+   */
+  private separateToolsByType(tools: unknown[]): { mcpTools: unknown[]; regularTools: unknown[] } {
+    const mcpTools: unknown[] = [];
+    const regularTools: unknown[] = [];
+
+    for (const tool of tools) {
+      if (tool && typeof tool === 'object' && 'name' in tool && typeof tool.name === 'string') {
+        if (this.classifyToolType(tool.name) === 'mcp') {
+          mcpTools.push(tool);
+        } else {
+          regularTools.push(tool);
+        }
+      }
+    }
+
+    return { mcpTools, regularTools };
+  }
 
   async analyze(log: InteractionLog): Promise<TokenUsageSummary | null> {
     // Only analyze /messages endpoints
@@ -101,29 +135,46 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
 
     const tools = body?.tools as unknown[] | undefined;
 
+    // Separate tools by type
+    let mcpTools: unknown[] = [];
+    let regularTools: unknown[] = [];
+    if (tools && Array.isArray(tools) && tools.length > 0) {
+      const separated = this.separateToolsByType(tools);
+      mcpTools = separated.mcpTools;
+      regularTools = separated.regularTools;
+    }
+
     // Run all token counting API calls in parallel
     const [
       inputSystemDetail,
       inputUserDetail,
       inputAssistantDetail,
       inputThinkingDetail,
-      inputToolDetail,
-      inputToolReturnDetail,
-      inputToolUseDetail,
+      inputToolMcpDetail,
+      inputToolRegularDetail,
+      inputToolReturnMcpDetail,
+      inputToolReturnRegularDetail,
+      inputToolUseMcpDetail,
+      inputToolUseRegularDetail,
       outputAssistantDetail,
       outputThinkingDetail,
-      outputToolUseDetail,
+      outputToolUseMcpDetail,
+      outputToolUseRegularDetail,
     ] = await Promise.all([
       this.buildDetail('system', inputBuckets.system, model),
       this.buildDetail('user', inputBuckets.user, model),
       this.buildDetail('assistant', inputBuckets.assistant, model),
       this.buildDetail('thinking', inputBuckets.thinking, model),
-      this.buildDetail('tool', [], model, tools),
-      this.buildDetail('tool_return', inputBuckets.tool_return, model),
-      this.buildDetail('tool_use', inputBuckets.tool_use, model),
+      this.buildDetail('tool_mcp', [], model, mcpTools),
+      this.buildDetail('tool_regular', [], model, regularTools),
+      this.buildDetail('tool_return_mcp', inputBuckets.tool_return_mcp, model),
+      this.buildDetail('tool_return_regular', inputBuckets.tool_return_regular, model),
+      this.buildDetail('tool_use_mcp', inputBuckets.tool_use_mcp, model),
+      this.buildDetail('tool_use_regular', inputBuckets.tool_use_regular, model),
       this.buildDetail('assistant', outputBuckets.assistant, model),
       this.buildDetail('thinking', outputBuckets.thinking, model),
-      this.buildDetail('tool_use', outputBuckets.tool_use, model),
+      this.buildDetail('tool_use_mcp', outputBuckets.tool_use_mcp, model),
+      this.buildDetail('tool_use_regular', outputBuckets.tool_use_regular, model),
     ]);
 
     const systemUsage = entry.tokenUsage.system_totals;
@@ -133,15 +184,19 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
       user: inputUserDetail,
       assistant: inputAssistantDetail,
       thinking: inputThinkingDetail,
-      tool: inputToolDetail,
-      tool_return: inputToolReturnDetail,
-      tool_use: inputToolUseDetail,
+      tool_mcp: inputToolMcpDetail,
+      tool_regular: inputToolRegularDetail,
+      tool_return_mcp: inputToolReturnMcpDetail,
+      tool_return_regular: inputToolReturnRegularDetail,
+      tool_use_mcp: inputToolUseMcpDetail,
+      tool_use_regular: inputToolUseRegularDetail,
     };
 
     const outputSegments: Record<string, TokenCountDetail> = {
       assistant: outputAssistantDetail,
       thinking: outputThinkingDetail,
-      tool_use: outputToolUseDetail,
+      tool_use_mcp: outputToolUseMcpDetail,
+      tool_use_regular: outputToolUseRegularDetail,
     };
 
     // Calculate totals
@@ -192,7 +247,10 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
     model: string,
     tools?: unknown[]
   ): Promise<TokenCountDetail> {
-    if (role !== 'tool' && textSegments.length === 0) {
+    // For tool definitions, check tools array instead of textSegments
+    const isToolDefinition = role === 'tool_mcp' || role === 'tool_regular';
+
+    if (!isToolDefinition && textSegments.length === 0) {
       return {
         tokens: 0,
         textLength: 0,
@@ -214,19 +272,22 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
           segments = textSegments.length;
           break;
         case 'user':
-        case 'tool_return':
+        case 'tool_return_mcp':
+        case 'tool_return_regular':
           tokens = await countUserTokens(model, combined);
           textLength = combined.length;
           segments = textSegments.length;
           break;
         case 'assistant':
         case 'thinking':
-        case 'tool_use':
+        case 'tool_use_mcp':
+        case 'tool_use_regular':
           tokens = await countAssistantTokens(model, combined);
           textLength = combined.length;
           segments = textSegments.length;
           break;
-        case 'tool':
+        case 'tool_mcp':
+        case 'tool_regular':
           if (tools && Array.isArray(tools) && tools.length > 0) {
             tokens = await countToolTokens(model, tools);
             textLength = JSON.stringify(tools).length;
@@ -258,19 +319,22 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
   private normalizeContentByType(content: unknown): {
     text: string[];
     thinking: string[];
-    tool_use: string[];
-    tool_result: string[];
+    tool_use_mcp: string[];
+    tool_use_regular: string[];
+    tool_result_unclassified: string[]; // Wrapped with toolUseId, classified later
   } {
     const result = {
       text: [],
       thinking: [],
-      tool_use: [],
-      tool_result: [],
+      tool_use_mcp: [],
+      tool_use_regular: [],
+      tool_result_unclassified: [],
     } as {
       text: string[];
       thinking: string[];
-      tool_use: string[];
-      tool_result: string[];
+      tool_use_mcp: string[];
+      tool_use_regular: string[];
+      tool_result_unclassified: string[];
     };
 
     if (typeof content === 'string') {
@@ -287,18 +351,26 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
           if (value.type === 'thinking' && 'thinking' in value && typeof value.thinking === 'string') {
             result.thinking.push(value.thinking);
           } else if (value.type === 'tool_use') {
+            const toolName = typeof value.name === 'string' ? value.name : '';
+            const toolType = this.classifyToolType(toolName);
             const value_with_relevant_fields = {
               name: value.name,
               input: value.input,
             };
-            result.tool_use.push(JSON.stringify(value_with_relevant_fields));
+            const serialized = JSON.stringify(value_with_relevant_fields);
+            if (toolType === 'mcp') {
+              result.tool_use_mcp.push(serialized);
+            } else {
+              result.tool_use_regular.push(serialized);
+            }
           } else if (value.type === 'tool_result') {
             if ('content' in value) {
-              if (typeof value.content === 'string') {
-                result.tool_result.push(value.content);
-              } else {
-                result.tool_result.push(JSON.stringify(value.content));
-              }
+              const contentStr = typeof value.content === 'string'
+                ? value.content
+                : JSON.stringify(value.content);
+              const toolUseId = value.tool_use_id;
+              // Store with toolUseId for classification in collectRequestBuckets
+              result.tool_result_unclassified.push(JSON.stringify({ toolUseId, content: contentStr }));
             }
           } else if (value.type === 'text' && 'text' in value && typeof value.text === 'string') {
             result.text.push(value.text);
@@ -313,14 +385,21 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
       if (value.type === 'thinking' && 'thinking' in value && typeof value.thinking === 'string') {
         result.thinking.push(value.thinking);
       } else if (value.type === 'tool_use') {
-        result.tool_use.push(JSON.stringify(value));
+        const toolName = typeof value.name === 'string' ? value.name : '';
+        const toolType = this.classifyToolType(toolName);
+        if (toolType === 'mcp') {
+          result.tool_use_mcp.push(JSON.stringify(value));
+        } else {
+          result.tool_use_regular.push(JSON.stringify(value));
+        }
       } else if (value.type === 'tool_result') {
         if ('content' in value) {
-          if (typeof value.content === 'string') {
-            result.tool_result.push(value.content);
-          } else {
-            result.tool_result.push(JSON.stringify(value.content));
-          }
+          const contentStr = typeof value.content === 'string'
+            ? value.content
+            : JSON.stringify(value.content);
+          const toolUseId = value.tool_use_id;
+          // Store with toolUseId for classification in collectRequestBuckets
+          result.tool_result_unclassified.push(JSON.stringify({ toolUseId, content: contentStr }));
         }
       } else if (value.type === 'text' && 'text' in value && typeof value.text === 'string') {
         result.text.push(value.text);
@@ -351,8 +430,30 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
       this.addIfPresent(buckets.system, system);
     }
 
+    // Build tool_use_id to tool name mapping for classifying tool_result blocks
+    const toolUseIdToName = new Map<string, string>();
+
     const messages = data.messages;
     if (Array.isArray(messages)) {
+      // First pass: collect tool_use blocks to build the mapping
+      for (const raw of messages) {
+        if (!raw || typeof raw !== 'object') {
+          continue;
+        }
+        const message = raw as { role?: string; content?: unknown };
+        if (message.role === 'assistant' && Array.isArray(message.content)) {
+          for (const block of message.content) {
+            if (block && typeof block === 'object' && 'type' in block) {
+              const b = block as Record<string, unknown>;
+              if (b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string') {
+                toolUseIdToName.set(b.id, b.name);
+              }
+            }
+          }
+        }
+      }
+
+      // Second pass: collect content into buckets
       for (const raw of messages) {
         if (!raw || typeof raw !== 'object') {
           continue;
@@ -366,8 +467,30 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
             for (const segment of contentByType.text) {
               this.addIfPresent(buckets.user, segment);
             }
-            for (const segment of contentByType.tool_result) {
-              this.addIfPresent(buckets.tool_return, segment);
+            // Classify tool_result by looking up tool name
+            for (const segment of contentByType.tool_result_unclassified) {
+              try {
+                const parsed = JSON.parse(segment) as { toolUseId?: string; content: string };
+                if (parsed.toolUseId) {
+                  const toolName = toolUseIdToName.get(parsed.toolUseId);
+                  if (toolName) {
+                    const toolType = this.classifyToolType(toolName);
+                    if (toolType === 'mcp') {
+                      this.addIfPresent(buckets.tool_return_mcp, parsed.content);
+                    } else {
+                      this.addIfPresent(buckets.tool_return_regular, parsed.content);
+                    }
+                  } else {
+                    // Unknown tool, default to regular
+                    this.addIfPresent(buckets.tool_return_regular, parsed.content);
+                  }
+                } else {
+                  this.addIfPresent(buckets.tool_return_regular, parsed.content);
+                }
+              } catch {
+                // If parse fails, treat as regular
+                this.addIfPresent(buckets.tool_return_regular, segment);
+              }
             }
             break;
           case 'assistant':
@@ -377,8 +500,11 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
             for (const segment of contentByType.thinking) {
               this.addIfPresent(buckets.thinking, segment);
             }
-            for (const segment of contentByType.tool_use) {
-              this.addIfPresent(buckets.tool_use, segment);
+            for (const segment of contentByType.tool_use_mcp) {
+              this.addIfPresent(buckets.tool_use_mcp, segment);
+            }
+            for (const segment of contentByType.tool_use_regular) {
+              this.addIfPresent(buckets.tool_use_regular, segment);
             }
             break;
         }
@@ -403,8 +529,11 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
         for (const segment of contentByType.thinking) {
           this.addIfPresent(buckets.thinking, segment);
         }
-        for (const segment of contentByType.tool_use) {
-          this.addIfPresent(buckets.tool_use, segment);
+        for (const segment of contentByType.tool_use_mcp) {
+          this.addIfPresent(buckets.tool_use_mcp, segment);
+        }
+        for (const segment of contentByType.tool_use_regular) {
+          this.addIfPresent(buckets.tool_use_regular, segment);
         }
       }
     } else if (Array.isArray(streamChunks)) {
@@ -432,8 +561,14 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
               }
             } else if (parsed.type === 'content_block_start') {
               const contentBlock = parsed.content_block as Record<string, unknown> | undefined;
-              if (contentBlock?.type === 'tool_use') {
-                this.addIfPresent(buckets.tool_use, JSON.stringify(contentBlock));
+              if (contentBlock?.type === 'tool_use' && typeof contentBlock.name === 'string') {
+                const toolType = this.classifyToolType(contentBlock.name);
+                const serialized = JSON.stringify(contentBlock);
+                if (toolType === 'mcp') {
+                  this.addIfPresent(buckets.tool_use_mcp, serialized);
+                } else {
+                  this.addIfPresent(buckets.tool_use_regular, serialized);
+                }
               }
             }
           } catch {

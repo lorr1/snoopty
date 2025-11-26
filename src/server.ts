@@ -56,7 +56,12 @@ function registerRoutes(app: express.Express): void {
   app.use('/v1', proxyRouter);
 
   // Static UI serving
-  const projectRoot = path.resolve(__dirname, '..');
+  // In dev mode (ts-node-dev): __dirname is src/, so go up one level
+  // In prod mode (compiled): __dirname is dist/src/, so go up two levels
+  const isDevMode = __dirname.endsWith('/src') || __dirname.endsWith('\\src');
+  const projectRoot = isDevMode
+    ? path.resolve(__dirname, '..')
+    : path.resolve(__dirname, '..', '..');
   const staticClientPath = path.join(projectRoot, 'dist', 'client');
   const existingClientPath = fs.existsSync(staticClientPath) ? staticClientPath : undefined;
 

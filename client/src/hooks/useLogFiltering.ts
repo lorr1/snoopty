@@ -122,6 +122,7 @@ export interface UseLogFilteringReturn {
   selectedTimeRange: TimeRange | null;
   endpointFilter: EndpointFilter;
   agentFilter: AgentFilter;
+  logIdSearch: string;
 
   // Computed
   agentFilterOptions: Array<{ id: AgentFilter; label: string }>;
@@ -137,6 +138,7 @@ export interface UseLogFilteringReturn {
   handleTimeWindowInputChange: (event: ChangeEvent<HTMLInputElement>) => void;
   handleEndpointFilterChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   handleAgentFilterChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  handleLogIdSearchChange: (event: ChangeEvent<HTMLInputElement>) => void;
   handleBrushSelection: (range: TimeRange | null) => void;
   handleClearTimeSelection: () => void;
 }
@@ -163,6 +165,10 @@ export function useLogFiltering({
     const stored = sessionStorage.getItem('snoopty.agentFilter');
     return (stored as AgentFilter) || 'all';
   });
+  const [logIdSearch, setLogIdSearch] = useState(() => {
+    const stored = sessionStorage.getItem('snoopty.logIdSearch');
+    return stored || '';
+  });
 
   // Save filter state to sessionStorage whenever it changes
   useEffect(() => {
@@ -180,6 +186,10 @@ export function useLogFiltering({
   useEffect(() => {
     sessionStorage.setItem('snoopty.agentFilter', agentFilter);
   }, [agentFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('snoopty.logIdSearch', logIdSearch);
+  }, [logIdSearch]);
 
   const agentFilterOptions = useMemo<Array<{ id: AgentFilter; label: string }>>(() => {
     const seen = new Map<string, { id: AgentFilter; label: string }>();
@@ -245,6 +255,16 @@ export function useLogFiltering({
     [endpointFilteredLogs, agentFilter]
   );
 
+  const logIdFilteredLogs = useMemo(() => {
+    if (!logIdSearch.trim()) {
+      return agentFilteredLogs;
+    }
+    const searchLower = logIdSearch.toLowerCase().trim();
+    return agentFilteredLogs.filter((entry) =>
+      entry.id.toLowerCase().includes(searchLower)
+    );
+  }, [agentFilteredLogs, logIdSearch]);
+
   const effectiveSelection = useMemo<TimeRange>(() => {
     if (!selectedTimeRange) {
       return { start: windowStart, end: windowEnd };
@@ -261,11 +281,11 @@ export function useLogFiltering({
 
   const filteredLogs = useMemo(
     () =>
-      agentFilteredLogs.filter(
+      logIdFilteredLogs.filter(
         (entry) =>
           entry.timestampMs >= effectiveSelection.start && entry.timestampMs <= effectiveSelection.end
       ),
-    [agentFilteredLogs, effectiveSelection]
+    [logIdFilteredLogs, effectiveSelection]
   );
 
   const autoTimelineRange = useMemo<TimeRange>(() => {
@@ -373,6 +393,13 @@ export function useLogFiltering({
     []
   );
 
+  const handleLogIdSearchChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setLogIdSearch(event.target.value);
+    },
+    []
+  );
+
   const handleBrushSelection = useCallback((range: TimeRange | null) => {
     setSelectedTimeRange(range);
   }, []);
@@ -386,6 +413,7 @@ export function useLogFiltering({
     selectedTimeRange,
     endpointFilter,
     agentFilter,
+    logIdSearch,
     agentFilterOptions,
     windowRange,
     filteredLogs,
@@ -397,6 +425,7 @@ export function useLogFiltering({
     handleTimeWindowInputChange,
     handleEndpointFilterChange,
     handleAgentFilterChange,
+    handleLogIdSearchChange,
     handleBrushSelection,
     handleClearTimeSelection,
   };

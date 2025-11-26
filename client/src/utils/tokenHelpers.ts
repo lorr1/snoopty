@@ -97,18 +97,72 @@ export function buildCustomBreakdowns(custom?: CustomTokenUsage): CustomTokenBre
   ): CustomTokenRow[] => {
     const rows: CustomTokenRow[] = [];
     for (const item of mapping) {
-      const detail = segments[item.id];
-      if (!detail) {
-        continue;
+      // For tool-related segments, aggregate MCP + Regular
+      if (item.id === 'tool') {
+        const mcpDetail = segments['tool_mcp'];
+        const regularDetail = segments['tool_regular'];
+        if (!mcpDetail && !regularDetail) continue;
+
+        const totalTokens = (mcpDetail?.tokens || 0) + (regularDetail?.tokens || 0);
+        const totalSegments = (mcpDetail?.segments || 0) + (regularDetail?.segments || 0);
+        const totalChars = (mcpDetail?.textLength || 0) + (regularDetail?.textLength || 0);
+
+        rows.push({
+          key: item.id,
+          label: item.label,
+          value: formatTokenCount(totalTokens),
+          detail: `${totalSegments} segment${totalSegments === 1 ? '' : 's'}, ${totalChars.toLocaleString()} chars`,
+          methodology: mcpDetail?.methodology || regularDetail?.methodology || 'unknown',
+          variant: item.variant,
+        });
+      } else if (item.id === 'tool_return') {
+        const mcpDetail = segments['tool_return_mcp'];
+        const regularDetail = segments['tool_return_regular'];
+        if (!mcpDetail && !regularDetail) continue;
+
+        const totalTokens = (mcpDetail?.tokens || 0) + (regularDetail?.tokens || 0);
+        const totalSegments = (mcpDetail?.segments || 0) + (regularDetail?.segments || 0);
+        const totalChars = (mcpDetail?.textLength || 0) + (regularDetail?.textLength || 0);
+
+        rows.push({
+          key: item.id,
+          label: item.label,
+          value: formatTokenCount(totalTokens),
+          detail: `${totalSegments} segment${totalSegments === 1 ? '' : 's'}, ${totalChars.toLocaleString()} chars`,
+          methodology: mcpDetail?.methodology || regularDetail?.methodology || 'unknown',
+          variant: item.variant,
+        });
+      } else if (item.id === 'tool_use') {
+        const mcpDetail = segments['tool_use_mcp'];
+        const regularDetail = segments['tool_use_regular'];
+        if (!mcpDetail && !regularDetail) continue;
+
+        const totalTokens = (mcpDetail?.tokens || 0) + (regularDetail?.tokens || 0);
+        const totalSegments = (mcpDetail?.segments || 0) + (regularDetail?.segments || 0);
+        const totalChars = (mcpDetail?.textLength || 0) + (regularDetail?.textLength || 0);
+
+        rows.push({
+          key: item.id,
+          label: item.label,
+          value: formatTokenCount(totalTokens),
+          detail: `${totalSegments} segment${totalSegments === 1 ? '' : 's'}, ${totalChars.toLocaleString()} chars`,
+          methodology: mcpDetail?.methodology || regularDetail?.methodology || 'unknown',
+          variant: item.variant,
+        });
+      } else {
+        // For non-tool segments, use the original logic
+        const detail = segments[item.id];
+        if (!detail) continue;
+
+        rows.push({
+          key: item.id,
+          label: item.label,
+          value: formatTokenCount(detail.tokens),
+          detail: `${detail.segments} segment${detail.segments === 1 ? '' : 's'}, ${detail.textLength.toLocaleString()} chars`,
+          methodology: detail.methodology,
+          variant: item.variant,
+        });
       }
-      rows.push({
-        key: item.id,
-        label: item.label,
-        value: formatTokenCount(detail.tokens),
-        detail: `${detail.segments} segment${detail.segments === 1 ? '' : 's'}, ${detail.textLength.toLocaleString()} chars`,
-        methodology: detail.methodology,
-        variant: item.variant,
-      });
     }
     return rows;
   };

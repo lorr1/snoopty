@@ -210,7 +210,7 @@ export function useLogSelection({
       const blob = await response.blob();
       const disposition = response.headers.get('content-disposition');
       const match = disposition?.match(/filename="(.+?)"/);
-      const filename = match ? match[1] : `snoopty-export-${Date.now()}.parquet`;
+      const filename = (match && match[1]) ? match[1] : `snoopty-export-${Date.now()}.parquet`;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -272,7 +272,7 @@ export function useLogSelection({
       return;
     }
     if (!selectedFileName || !filteredLogs.some((entry) => entry.fileName === selectedFileName)) {
-      setSelectedFileName(filteredLogs[0].fileName);
+      setSelectedFileName(filteredLogs[0]?.fileName ?? null);
     }
   }, [filteredLogs, selectedFileName]);
 

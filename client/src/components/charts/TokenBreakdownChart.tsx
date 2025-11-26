@@ -12,11 +12,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { ToolUsageRow } from '../../../../shared/types';
-import { AGENT_TAG_COLORS, DEFAULT_CHART_COLOR, DEFAULT_STROKE_COLOR, TOKEN_COLORS } from '../../constants/colors';
+import type { ToolUsageRow, UniqueToolCall } from '../../../../shared/types';
+import { AGENT_TAG_COLORS, DEFAULT_CHART_COLOR, DEFAULT_STROKE_COLOR, TOKEN_COLORS, TOOL_TYPE_COLORS } from '../../constants/colors';
 
 interface TokenBreakdownChartProps {
   data: ToolUsageRow[];
+  toolCalls: UniqueToolCall[];
 }
 
 interface ScatterPoint {
@@ -35,10 +36,8 @@ interface PieChartData {
   [key: string]: string | number;
 }
 
-const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
+const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data, toolCalls }) => {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [inputDrillDown, setInputDrillDown] = useState(false);
-  const [outputDrillDown, setOutputDrillDown] = useState(false);
 
   // Prepare scatter plot data
   const scatterData: ScatterPoint[] = useMemo(() => {
@@ -48,12 +47,16 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
         (row.input_user_tokens || 0) +
         (row.input_assistant_tokens || 0) +
         (row.input_thinking_tokens || 0) +
-        (row.input_tool_definition_tokens || 0) +
-        (row.input_tool_use_tokens || 0) +
-        (row.input_tool_return_tokens || 0) +
+        (row.input_tool_definition_mcp_tokens || 0) +
+        (row.input_tool_definition_regular_tokens || 0) +
+        (row.input_tool_use_mcp_tokens || 0) +
+        (row.input_tool_use_regular_tokens || 0) +
+        (row.input_tool_return_mcp_tokens || 0) +
+        (row.input_tool_return_regular_tokens || 0) +
         (row.output_assistant_tokens || 0) +
         (row.output_thinking_tokens || 0) +
-        (row.output_tool_use_tokens || 0);
+        (row.output_tool_use_mcp_tokens || 0) +
+        (row.output_tool_use_regular_tokens || 0);
 
       return {
         timestamp: new Date(row.timestamp).getTime(),
@@ -69,85 +72,46 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
   // Get selected request data
   const selectedRequest = selectedIndex !== null ? data[selectedIndex] : null;
 
-  // Format input pie chart data
+  // Format input pie chart data (high-level view)
   const inputPieData: PieChartData[] = useMemo(() => {
     if (!selectedRequest) return [];
 
-    if (inputDrillDown) {
-      // Expanded view - show all segments
-      return [
-        {
-          name: 'System',
-          value: selectedRequest.input_system_tokens || 0,
-          color: TOKEN_COLORS.system,
-        },
-        {
-          name: 'User',
-          value: selectedRequest.input_user_tokens || 0,
-          color: TOKEN_COLORS.user,
-        },
-        {
-          name: 'Assistant',
-          value: selectedRequest.input_assistant_tokens || 0,
-          color: TOKEN_COLORS.assistant,
-        },
-        {
-          name: 'Thinking',
-          value: selectedRequest.input_thinking_tokens || 0,
-          color: TOKEN_COLORS.thinking,
-        },
-        {
-          name: 'Tool Definitions',
-          value: selectedRequest.input_tool_definition_tokens || 0,
-          color: '#f97316',
-        },
-        {
-          name: 'Tool Use',
-          value: selectedRequest.input_tool_use_tokens || 0,
-          color: '#fb923c',
-        },
-        {
-          name: 'Tool Returns',
-          value: selectedRequest.input_tool_return_tokens || 0,
-          color: '#fdba74',
-        },
-      ].filter((item) => item.value > 0);
-    } else {
-      // Grouped view
-      const toolsTotal =
-        (selectedRequest.input_tool_definition_tokens || 0) +
-        (selectedRequest.input_tool_use_tokens || 0) +
-        (selectedRequest.input_tool_return_tokens || 0);
+    const toolsTotal =
+      (selectedRequest.input_tool_definition_mcp_tokens || 0) +
+      (selectedRequest.input_tool_definition_regular_tokens || 0) +
+      (selectedRequest.input_tool_use_mcp_tokens || 0) +
+      (selectedRequest.input_tool_use_regular_tokens || 0) +
+      (selectedRequest.input_tool_return_mcp_tokens || 0) +
+      (selectedRequest.input_tool_return_regular_tokens || 0);
 
-      return [
-        {
-          name: 'System',
-          value: selectedRequest.input_system_tokens || 0,
-          color: TOKEN_COLORS.system,
-        },
-        {
-          name: 'User',
-          value: selectedRequest.input_user_tokens || 0,
-          color: TOKEN_COLORS.user,
-        },
-        {
-          name: 'Assistant',
-          value: selectedRequest.input_assistant_tokens || 0,
-          color: TOKEN_COLORS.assistant,
-        },
-        {
-          name: 'Thinking',
-          value: selectedRequest.input_thinking_tokens || 0,
-          color: TOKEN_COLORS.thinking,
-        },
-        {
-          name: 'Tools',
-          value: toolsTotal,
-          color: TOKEN_COLORS.tools,
-        },
-      ].filter((item) => item.value > 0);
-    }
-  }, [selectedRequest, inputDrillDown]);
+    return [
+      {
+        name: 'System',
+        value: selectedRequest.input_system_tokens || 0,
+        color: TOKEN_COLORS.system,
+      },
+      {
+        name: 'User',
+        value: selectedRequest.input_user_tokens || 0,
+        color: TOKEN_COLORS.user,
+      },
+      {
+        name: 'Assistant',
+        value: selectedRequest.input_assistant_tokens || 0,
+        color: TOKEN_COLORS.assistant,
+      },
+      {
+        name: 'Thinking',
+        value: selectedRequest.input_thinking_tokens || 0,
+        color: TOKEN_COLORS.thinking,
+      },
+      {
+        name: 'Tools',
+        value: toolsTotal,
+        color: TOKEN_COLORS.tools,
+      },
+    ].filter((item) => item.value > 0);
+  }, [selectedRequest]);
 
   // Format output pie chart data
   const outputPieData: PieChartData[] = useMemo(() => {
@@ -166,8 +130,46 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
       },
       {
         name: 'Tool Use',
-        value: selectedRequest.output_tool_use_tokens || 0,
+        value: (selectedRequest.output_tool_use_mcp_tokens || 0) + (selectedRequest.output_tool_use_regular_tokens || 0),
         color: TOKEN_COLORS.toolsOutput,
+      },
+    ].filter((item) => item.value > 0);
+  }, [selectedRequest]);
+
+  // Format input tool tokens breakdown (detailed view of input tool tokens only)
+  const inputToolTokensPieData: PieChartData[] = useMemo(() => {
+    if (!selectedRequest) return [];
+
+    return [
+      {
+        name: 'Tool Def (MCP)',
+        value: selectedRequest.input_tool_definition_mcp_tokens || 0,
+        color: TOOL_TYPE_COLORS.toolDefinitionMcp,
+      },
+      {
+        name: 'Tool Def (Regular)',
+        value: selectedRequest.input_tool_definition_regular_tokens || 0,
+        color: TOOL_TYPE_COLORS.toolDefinitionRegular,
+      },
+      {
+        name: 'Tool Use (MCP)',
+        value: selectedRequest.input_tool_use_mcp_tokens || 0,
+        color: TOOL_TYPE_COLORS.toolUseMcp,
+      },
+      {
+        name: 'Tool Use (Regular)',
+        value: selectedRequest.input_tool_use_regular_tokens || 0,
+        color: TOOL_TYPE_COLORS.toolUseRegular,
+      },
+      {
+        name: 'Tool Return (MCP)',
+        value: selectedRequest.input_tool_return_mcp_tokens || 0,
+        color: TOOL_TYPE_COLORS.toolReturnMcp,
+      },
+      {
+        name: 'Tool Return (Regular)',
+        value: selectedRequest.input_tool_return_regular_tokens || 0,
+        color: TOOL_TYPE_COLORS.toolReturnRegular,
       },
     ].filter((item) => item.value > 0);
   }, [selectedRequest]);
@@ -191,6 +193,9 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
           <p style={{ margin: '0 0 5px 0', fontWeight: 'bold' }}>
             Total: {point.totalTokens.toLocaleString()} tokens
           </p>
+          <p style={{ margin: '0 0 5px 0', fontSize: '11px', fontFamily: 'monospace', color: '#475569' }}>
+            Log ID: {point.logId}
+          </p>
           {point.agentTag && (
             <p style={{ margin: '0 0 5px 0', fontSize: '12px' }}>
               Agent: {point.agentTag}
@@ -209,26 +214,11 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
   const handleScatterClick = (data: any) => {
     if (data && data.index !== undefined) {
       setSelectedIndex(data.index);
-      setInputDrillDown(false);
-      setOutputDrillDown(false);
     }
-  };
-
-  // Handle pie slice click for drill-down
-  const handleInputPieClick = (entry: PieChartData) => {
-    if (entry.name === 'Tools' && !inputDrillDown) {
-      setInputDrillDown(true);
-    }
-  };
-
-  const handleOutputPieClick = (entry: PieChartData) => {
-    // Output pie doesn't have grouped categories currently
-    // Could add drill-down if needed
   };
 
   // Custom shape renderer for scatter plot dots - colors by agent tag
   const renderColoredDot = (props: any) => {
-    console.log('AGENT_TAG_COLORS:', AGENT_TAG_COLORS, props.payload.agentTag);
     const { cx, cy, payload } = props;
     const agentTag = payload.agentTag || 'Untagged';
     const color = AGENT_TAG_COLORS[agentTag] || DEFAULT_CHART_COLOR;
@@ -249,6 +239,7 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
   // Calculate total for pie chart percentages
   const inputTotal = inputPieData.reduce((sum, item) => sum + item.value, 0);
   const outputTotal = outputPieData.reduce((sum, item) => sum + item.value, 0);
+  const inputToolTokensTotal = inputToolTokensPieData.reduce((sum, item) => sum + item.value, 0);
 
   return (
     <div className="chart-container">
@@ -381,31 +372,15 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
         </div>
       )}
 
-      {/* Dual Pie Charts */}
+      {/* Pie Charts */}
       {selectedRequest && (
-        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-          {/* Input Pie Chart */}
-          <div style={{ flex: '1', minWidth: '300px' }}>
+        <>
+          {/* Top Row: Input and Output Pie Charts */}
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '20px' }}>
+            {/* Input Pie Chart */}
+            <div style={{ flex: '1', minWidth: '300px' }}>
             <h4 style={{ textAlign: 'center', marginBottom: '10px' }}>
               Input Tokens ({inputTotal.toLocaleString()})
-              {!inputDrillDown && inputPieData.some((d) => d.name === 'Tools') && (
-                <span style={{ fontSize: '12px', color: '#64748b', marginLeft: '10px' }}>
-                  (click Tools to expand)
-                </span>
-              )}
-              {inputDrillDown && (
-                <button
-                  onClick={() => setInputDrillDown(false)}
-                  style={{
-                    marginLeft: '10px',
-                    fontSize: '12px',
-                    padding: '2px 8px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Collapse
-                </button>
-              )}
             </h4>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
@@ -420,8 +395,6 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
                     const percent = ((entry.value / inputTotal) * 100).toFixed(1);
                     return `${entry.name} (${percent}%)`;
                   }}
-                  onClick={handleInputPieClick}
-                  style={{ cursor: 'pointer' }}
                 >
                   {inputPieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -453,7 +426,6 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
                     const percent = ((entry.value / outputTotal) * 100).toFixed(1);
                     return `${entry.name} (${percent}%)`;
                   }}
-                  onClick={handleOutputPieClick}
                 >
                   {outputPieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -466,7 +438,44 @@ const TokenBreakdownChart: React.FC<TokenBreakdownChartProps> = ({ data }) => {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        </div>
+
+          </div>
+
+          {/* Bottom Row: Input Tool Tokens Breakdown (Centered) */}
+          {inputToolTokensPieData.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+              <div style={{ width: '800px', maxWidth: '100%' }}>
+                <h4 style={{ textAlign: 'center', marginBottom: '10px' }}>
+                  Input Tool Tokens Breakdown ({inputToolTokensTotal.toLocaleString()})
+                </h4>
+                <ResponsiveContainer width="100%" height={350}>
+                  <PieChart>
+                    <Pie
+                      data={inputToolTokensPieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={120}
+                      label={(entry) => {
+                        const percent = ((entry.value / inputToolTokensTotal) * 100).toFixed(1);
+                        return `${entry.name} (${percent}%)`;
+                      }}
+                    >
+                      {inputToolTokensPieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => value.toLocaleString() + ' tokens'}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Initial state message */}

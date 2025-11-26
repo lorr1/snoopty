@@ -25,7 +25,7 @@ export default function AppHeader({
     <header className="app-header">
       <div className="app-brand">
         <h1>Snoopty</h1>
-        <p className="app-tagline">Anthropic proxy inspector</p>
+        <p className="app-tagline">Claude Code Inspector</p>
       </div>
       <div className="header-actions">
         <Link to="/dashboard" state={{ logIds: filteredFileNames }} className="secondary-button">

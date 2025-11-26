@@ -13,7 +13,7 @@ interface TokenSummarySectionProps {
 
 export default function TokenSummarySection({
   tokenUsage,
-}: TokenSummarySectionProps): JSX.Element {
+}: TokenSummarySectionProps) {
   const systemChips = buildTokenChips(tokenUsage.system_totals);
   const customBreakdowns = buildCustomBreakdowns(tokenUsage.custom);
 

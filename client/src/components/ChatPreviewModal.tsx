@@ -40,8 +40,9 @@ export default function ChatPreviewModal({
   onClose,
   segments,
   metadata,
-}: ChatPreviewModalProps): JSX.Element | null {
+}: ChatPreviewModalProps) {
   const [collapsedSegments, setCollapsedSegments] = useState<Set<string>>(new Set());
+  const [isExpanded, setIsExpanded] = useState(false);
   const lastSignatureRef = useRef<string | null>(null);
   const hasSegments = useMemo(() => segments.length > 0, [segments.length]);
   const segmentStats = useMemo(() => {
@@ -63,6 +64,7 @@ export default function ChatPreviewModal({
   useEffect(() => {
     if (!isOpen) {
       setCollapsedSegments(new Set());
+      setIsExpanded(false);
       lastSignatureRef.current = null;
       return;
     }
@@ -115,7 +117,7 @@ export default function ChatPreviewModal({
     <div className="chat-preview-modal">
       <div className="chat-preview-modal__backdrop" onClick={onClose} aria-hidden="true" />
       <div
-        className="chat-preview-modal__panel"
+        className={`chat-preview-modal__panel ${isExpanded ? 'chat-preview-modal__panel--expanded' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
@@ -137,14 +139,24 @@ export default function ChatPreviewModal({
               {metadata?.timestamp && <span>{metadata.timestamp}</span>}
             </div>
           </div>
-          <button
-            type="button"
-            className="chat-preview-modal__close"
-            onClick={onClose}
-            aria-label="Close chat preview"
-          >
-            Close
-          </button>
+          <div className="chat-preview-modal__actions">
+            <button
+              type="button"
+              className="chat-preview-modal__expand"
+              onClick={() => setIsExpanded(!isExpanded)}
+              aria-label={isExpanded ? 'Collapse modal' : 'Expand modal'}
+            >
+              {isExpanded ? 'Collapse' : 'Expand'}
+            </button>
+            <button
+              type="button"
+              className="chat-preview-modal__close"
+              onClick={onClose}
+              aria-label="Close chat preview"
+            >
+              Close
+            </button>
+          </div>
         </div>
         <div className="chat-preview-modal__body">
           {hasSegments ? (

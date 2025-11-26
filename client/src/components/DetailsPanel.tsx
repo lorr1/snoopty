@@ -318,12 +318,13 @@ export default function DetailsPanel({
   selectedSummary,
   isDetailLoading,
   detailError,
-}: DetailsPanelProps): JSX.Element {
+}: DetailsPanelProps) {
   const [activeTab, setActiveTab] = useState<DetailTabId>('overview');
   const [showRequestHeaders, setShowRequestHeaders] = useState(false);
   const [showResponseHeaders, setShowResponseHeaders] = useState(false);
   const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>('body');
   const [isChatPreviewOpen, setIsChatPreviewOpen] = useState(false);
+  const [isTokenSummaryCollapsed, setIsTokenSummaryCollapsed] = useState(false);
 
   const selectedTokenUsage = useMemo(
     () => selectedLog?.tokenUsage ?? selectedSummary?.tokenUsage ?? null,
@@ -354,7 +355,7 @@ export default function DetailsPanel({
       ? selectedLog.request.body
       : null;
     const model =
-      (typeof requestBody?.model === 'string' && requestBody.model) ??
+      (typeof requestBody?.model === 'string' ? requestBody.model : null) ??
       selectedSummary?.model ??
       null;
     return {
@@ -453,6 +454,21 @@ export default function DetailsPanel({
         <>
           {selectedTokenUsage && (
             <div className="token-summary">
+              <button
+                type="button"
+                className="token-summary__toggle"
+                onClick={() => setIsTokenSummaryCollapsed((prev) => !prev)}
+              >
+                <span>Token Counts</span>
+                <span
+                  className={`detail-card__chevron${
+                    !isTokenSummaryCollapsed ? ' detail-card__chevron--open' : ''
+                  }`}
+                  aria-hidden="true"
+                />
+              </button>
+              {!isTokenSummaryCollapsed && (
+                <div className="token-summary__content">
               <div className="token-summary__section token-summary__section--system">
                 <div className="token-summary__title">System Usage</div>
                 <div className="token-summary__chips">
@@ -545,6 +561,8 @@ export default function DetailsPanel({
                   </div>
                 )}
               </div>
+                </div>
+              )}
             </div>
           )}
           <nav className="detail-tabs" aria-label="Interaction detail tabs">

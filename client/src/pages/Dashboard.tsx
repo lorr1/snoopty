@@ -78,14 +78,19 @@ function aggregateMetrics(logs: InteractionLog[]): ToolMetricsDataResponse {
       input_user_tokens: tokenUsage.custom?.input.segments['user']?.tokens || 0,
       input_assistant_tokens: tokenUsage.custom?.input.segments['assistant']?.tokens || 0,
       input_thinking_tokens: tokenUsage.custom?.input.segments['thinking']?.tokens || 0,
-      input_tool_definition_tokens: tokenUsage.custom?.input.segments['tool']?.tokens || 0,
-      input_tool_use_tokens: tokenUsage.custom?.input.segments['tool_use']?.tokens || 0,
-      input_tool_return_tokens: tokenUsage.custom?.input.segments['tool_return']?.tokens || 0,
       output_assistant_tokens: tokenUsage.custom?.output.segments['assistant']?.tokens || 0,
       output_thinking_tokens: tokenUsage.custom?.output.segments['thinking']?.tokens || 0,
-      output_tool_use_tokens: tokenUsage.custom?.output.segments['tool_use']?.tokens || 0,
       agentTag: agentTagLabel,
       model,
+      // MCP vs Regular breakdown
+      input_tool_definition_mcp_tokens: tokenUsage.custom?.input.segments['tool_mcp']?.tokens || 0,
+      input_tool_definition_regular_tokens: tokenUsage.custom?.input.segments['tool_regular']?.tokens || 0,
+      input_tool_use_mcp_tokens: tokenUsage.custom?.input.segments['tool_use_mcp']?.tokens || 0,
+      input_tool_use_regular_tokens: tokenUsage.custom?.input.segments['tool_use_regular']?.tokens || 0,
+      input_tool_return_mcp_tokens: tokenUsage.custom?.input.segments['tool_return_mcp']?.tokens || 0,
+      input_tool_return_regular_tokens: tokenUsage.custom?.input.segments['tool_return_regular']?.tokens || 0,
+      output_tool_use_mcp_tokens: tokenUsage.custom?.output.segments['tool_use_mcp']?.tokens || 0,
+      output_tool_use_regular_tokens: tokenUsage.custom?.output.segments['tool_use_regular']?.tokens || 0,
     });
   }
 
@@ -206,7 +211,7 @@ export default function Dashboard() {
 
       <div className="dashboard-content">
         <div className="dashboard-charts">
-          <TokenBreakdownChart data={data.usage} />
+          <TokenBreakdownChart data={data.usage} toolCalls={data.toolCalls} />
           <ToolUsageChart data={data.toolCalls} />
           <ToolReturnSizeChart data={data.toolCalls} />
         </div>

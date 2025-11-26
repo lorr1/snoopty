@@ -75,7 +75,7 @@ export default function TimelineListSection({
   onSelectAll,
   onClearSelection,
   onDeleteSelected,
-}: TimelineListSectionProps): JSX.Element {
+}: TimelineListSectionProps) {
   const groupedLogs = groupLogs(filteredLogs);
 
   return (

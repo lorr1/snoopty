@@ -63,14 +63,14 @@ export default function ToolReturnSizeChart({ data }: ToolReturnSizeChartProps) 
   return (
     <div className="chart-container">
       <h3>Tool Return Sizes (Tokens)</h3>
-      <ResponsiveContainer width="100%" height={400}>
-        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 100, bottom: 60 }}>
+      <ResponsiveContainer width="100%" height={600}>
+        <BarChart data={chartData} margin={{ top: 40, right: 30, left: 100, bottom: 150 }}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
             dataKey="toolName"
             angle={-45}
             textAnchor="end"
-            height={100}
+            height={120}
             interval={0}
           />
           <YAxis
@@ -98,9 +98,9 @@ export default function ToolReturnSizeChart({ data }: ToolReturnSizeChartProps) 
               return null;
             }}
           />
-          <Legend />
-          <Bar dataKey="mcpTokens" stackId="a" fill={TOOL_TYPE_COLORS.mcp} name="MCP Tool Returns" />
-          <Bar dataKey="regularTokens" stackId="a" fill={TOOL_TYPE_COLORS.regularReturns} name="Regular Tool Returns" />
+          <Legend verticalAlign="top" align="right" />
+          <Bar dataKey="mcpTokens" stackId="a" fill={TOOL_TYPE_COLORS.toolReturnMcp} name="MCP Tool Returns" />
+          <Bar dataKey="regularTokens" stackId="a" fill={TOOL_TYPE_COLORS.toolReturnRegular} name="Regular Tool Returns" />
         </BarChart>
       </ResponsiveContainer>
     </div>

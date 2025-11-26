@@ -42,7 +42,7 @@ export default function TimelineBrush({
   selectionActive,
   activeTimestamp,
   onSelectionChange,
-}: TimelineBrushProps): JSX.Element {
+}: TimelineBrushProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dragState, setDragState] = useState<{ start: number; current: number } | null>(null);
 
@@ -164,17 +164,17 @@ export default function TimelineBrush({
     }));
     placements.sort((a, b) => a.fraction - b.fraction);
     for (let i = 1; i < placements.length; i += 1) {
-      const prev = placements[i - 1];
-      const current = placements[i];
+      const prev = placements[i - 1]!;
+      const current = placements[i]!;
       if (current.fraction - prev.fraction < MIN_FRACTION_GAP) {
-        placements[i].fraction = Math.min(prev.fraction + MIN_FRACTION_GAP, 1);
+        placements[i]!.fraction = Math.min(prev.fraction + MIN_FRACTION_GAP, 1);
       }
     }
     for (let i = placements.length - 2; i >= 0; i -= 1) {
-      const next = placements[i + 1];
-      const current = placements[i];
+      const next = placements[i + 1]!;
+      const current = placements[i]!;
       if (next.fraction - current.fraction < MIN_FRACTION_GAP) {
-        placements[i].fraction = Math.max(next.fraction - MIN_FRACTION_GAP, 0);
+        placements[i]!.fraction = Math.max(next.fraction - MIN_FRACTION_GAP, 0);
       }
     }
     const map = new Map<number, number>();

@@ -34,6 +34,7 @@ export default function Timeline() {
     endpointFilter,
     agentFilter,
     agentFilterOptions,
+    logIdSearch,
     filteredLogs,
     filteredFileNames,
     brushPoints,
@@ -44,6 +45,7 @@ export default function Timeline() {
     handleTimeWindowInputChange,
     handleEndpointFilterChange,
     handleAgentFilterChange,
+    handleLogIdSearchChange,
     handleBrushSelection,
     handleClearTimeSelection,
   } = useLogFiltering({
@@ -105,12 +107,14 @@ export default function Timeline() {
             endpointFilter={endpointFilter}
             agentFilter={agentFilter}
             agentFilterOptions={agentFilterOptions}
+            logIdSearch={logIdSearch}
             selectionActive={selectionActive}
             filteredFileNamesCount={filteredFileNames.length}
             isExporting={isExporting}
             onTimeWindowChange={handleTimeWindowInputChange}
             onEndpointFilterChange={handleEndpointFilterChange}
             onAgentFilterChange={handleAgentFilterChange}
+            onLogIdSearchChange={handleLogIdSearchChange}
             onClearTimeSelection={handleClearTimeSelection}
             onExportFiltered={handleExportFiltered}
           />
