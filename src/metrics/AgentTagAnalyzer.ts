@@ -76,6 +76,28 @@ const TAG_RULES: AgentTagRule[] = [
     matchers: [/language diagnostics/i, /language detection/i, /language_name/i],
   },
   {
+    id: 'file-path-extractor',
+    label: 'File Path Extractor',
+    description: 'Extracts file paths from bash commands.',
+    theme: {
+      text: '#be123c',
+      background: 'rgba(225, 29, 72, 0.15)',
+      border: 'rgba(225, 29, 72, 0.35)',
+    },
+    matchers: [/extract any file paths that this command reads or modifies/i],
+  },
+  {
+    id: 'bash-command-processor',
+    label: 'Bash Command Processor',
+    description: 'Processes and validates bash commands.',
+    theme: {
+      text: '#a16207',
+      background: 'rgba(234, 179, 8, 0.15)',
+      border: 'rgba(234, 179, 8, 0.35)',
+    },
+    matchers: [/your task is to process bash commands/i],
+  },
+  {
     id: 'primary',
     label: 'Primary Agent',
     description: 'Main CLI agent coordinating user requests.',
@@ -84,10 +106,12 @@ const TAG_RULES: AgentTagRule[] = [
       background: 'rgba(59, 130, 246, 0.14)',
       border: 'rgba(37, 99, 235, 0.35)',
     },
-    matchers: [/anthropic's official cli/i, /interactive cli tool/i, /claude code/i],
+    matchers: [
+      /you are an interactive cli tool that helps users with software engineering tasks\.\s*use the instructions below and the tools/i,
+    ],
   },
   {
-    id: 'unknown',
+    id: 'untagged',
     label: 'Untagged',
     description: 'No system prompt present to identify the agent.',
     theme: {
@@ -95,7 +119,7 @@ const TAG_RULES: AgentTagRule[] = [
       background: 'rgba(15, 23, 42, 0.08)',
       border: 'rgba(15, 23, 42, 0.2)',
     },
-    matchers: [() => true],
+    matchers: [],
   },
 ];
 
@@ -117,12 +141,13 @@ export class AgentTagAnalyzer implements MetricsAnalyzer<AgentTagInfo> {
     }
   }
 
-  private deriveAgentTag(body: unknown): AgentTagInfo {
+  private deriveAgentTag(body: unknown): AgentTagInfo | null {
     const systemText = this.collectSystemPrompt(body);
     const normalized = systemText.toLowerCase();
 
     for (const rule of TAG_RULES) {
       if (
+        rule.matchers.length > 0 &&
         rule.matchers.some((matcher) =>
           matcher instanceof RegExp ? matcher.test(normalized) : matcher(normalized)
         )
@@ -131,7 +156,8 @@ export class AgentTagAnalyzer implements MetricsAnalyzer<AgentTagInfo> {
       }
     }
 
-    return this.ruleToInfo(TAG_RULES[TAG_RULES.length - 1]!);
+    // No matches - return null (untagged)
+    return null;
   }
 
   private collectSystemPrompt(body: unknown): string {

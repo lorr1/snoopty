@@ -585,6 +585,10 @@ export default function DetailsPanel({
                   <div className="detail-card__body">
                     <dl className="detail-properties">
                       <div className="detail-property">
+                        <dt>Log ID</dt>
+                        <dd style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>{selectedLog.id}</dd>
+                      </div>
+                      <div className="detail-property">
                         <dt>Timestamp</dt>
                         <dd>{formatTimestamp(selectedLog.timestamp)}</dd>
                       </div>

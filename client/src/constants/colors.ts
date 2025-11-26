@@ -42,9 +42,11 @@ export const TOOL_TYPE_COLORS = {
 export const AGENT_TAG_COLORS: Record<string, string> = {
   'Topic Labeler': '#a855f7',           // Bright purple
   'Conversation Summarizer': '#8b5cf6', // Bright violet
-  'File Search': '#f59e0b',             // Bright amber/orange
+  'File Search Specialist': '#f59e0b',  // Bright amber/orange
   'Framework Detector': '#10b981',      // Bright emerald/green
   'Language Detector': '#06b6d4',       // Bright cyan
+  'File Path Extractor': '#be123c',     // Rose/red
+  'Bash Command Processor': '#a16207',  // Amber/yellow
   'Primary Agent': '#3b82f6',           // Bright blue
   'Untagged': '#64748b',                // Lighter slate/gray
 } as const;

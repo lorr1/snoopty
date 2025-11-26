@@ -58,10 +58,10 @@ function registerRoutes(app: express.Express): void {
   // Static UI serving
   // In dev mode (ts-node-dev): __dirname is src/, so go up one level
   // In prod mode (compiled): __dirname is dist/src/, so go up two levels
-  const isDevMode = __dirname.endsWith('/src') || __dirname.endsWith('\\src');
-  const projectRoot = isDevMode
-    ? path.resolve(__dirname, '..')
-    : path.resolve(__dirname, '..', '..');
+  const isCompiledCode = __dirname.includes(path.join('dist', 'src'));
+  const projectRoot = isCompiledCode
+    ? path.resolve(__dirname, '..', '..')
+    : path.resolve(__dirname, '..');
   const staticClientPath = path.join(projectRoot, 'dist', 'client');
   const existingClientPath = fs.existsSync(staticClientPath) ? staticClientPath : undefined;
 

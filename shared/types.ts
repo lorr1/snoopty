@@ -14,7 +14,8 @@ export type AgentTagId =
   | 'framework-detector'
   | 'language-detector'
   | 'conversation-summarizer'
-  | 'unknown'
+  | 'file-path-extractor'
+  | 'bash-command-processor'
   | 'untagged';
 
 export interface AgentTagTheme {
