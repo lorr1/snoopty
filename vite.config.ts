@@ -9,6 +9,9 @@ export default defineConfig({
   root: path.resolve(__dirname, 'client'),
   publicDir: path.resolve(__dirname, 'client', 'public'),
   base: '/ui/',
+  optimizeDeps: {
+    exclude: ['@anthropic-ai/tokenizer'],
+  },
   build: {
     outDir: path.resolve(__dirname, 'dist', 'client'),
     emptyOutDir: true,

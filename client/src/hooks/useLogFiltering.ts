@@ -1,6 +1,6 @@
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import type { TimeRange } from '../components/TimelineBrush';
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentTagInfo } from '../../../shared/types';
+import type { TimeRange } from '../components/TimelineBrush';
 import { clamp } from '../utils/time';
 import type { LogWithTime } from './useLogData';
 
@@ -146,10 +146,40 @@ export function useLogFiltering({
   earliestTimestampMs,
   latestTimestampMs,
 }: UseLogFilteringParams): UseLogFilteringReturn {
-  const [timeWindowDays, setTimeWindowDays] = useState(1);
-  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange | null>(null);
-  const [endpointFilter, setEndpointFilter] = useState<EndpointFilter>('messages');
-  const [agentFilter, setAgentFilter] = useState<AgentFilter>('all');
+  // Load filter state from sessionStorage on mount
+  const [timeWindowDays, setTimeWindowDays] = useState(() => {
+    const stored = sessionStorage.getItem('snoopty.timeWindowDays');
+    return stored ? Number(stored) : 1;
+  });
+  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange | null>(() => {
+    const stored = sessionStorage.getItem('snoopty.selectedTimeRange');
+    return stored ? JSON.parse(stored) : null;
+  });
+  const [endpointFilter, setEndpointFilter] = useState<EndpointFilter>(() => {
+    const stored = sessionStorage.getItem('snoopty.endpointFilter');
+    return (stored as EndpointFilter) || 'messages';
+  });
+  const [agentFilter, setAgentFilter] = useState<AgentFilter>(() => {
+    const stored = sessionStorage.getItem('snoopty.agentFilter');
+    return (stored as AgentFilter) || 'all';
+  });
+
+  // Save filter state to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('snoopty.timeWindowDays', String(timeWindowDays));
+  }, [timeWindowDays]);
+
+  useEffect(() => {
+    sessionStorage.setItem('snoopty.selectedTimeRange', JSON.stringify(selectedTimeRange));
+  }, [selectedTimeRange]);
+
+  useEffect(() => {
+    sessionStorage.setItem('snoopty.endpointFilter', endpointFilter);
+  }, [endpointFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('snoopty.agentFilter', agentFilter);
+  }, [agentFilter]);
 
   const agentFilterOptions = useMemo<Array<{ id: AgentFilter; label: string }>>(() => {
     const seen = new Map<string, { id: AgentFilter; label: string }>();
@@ -242,8 +272,8 @@ export function useLogFiltering({
     if (filteredLogs.length === 0) {
       return windowRange;
     }
-    let minTs = filteredLogs[0].timestampMs;
-    let maxTs = filteredLogs[0].timestampMs;
+    let minTs = filteredLogs[0]?.timestampMs ?? windowRange.start;
+    let maxTs = filteredLogs[0]?.timestampMs ?? windowRange.end;
     for (const entry of filteredLogs) {
       minTs = Math.min(minTs, entry.timestampMs);
       maxTs = Math.max(maxTs, entry.timestampMs);
@@ -292,20 +322,30 @@ export function useLogFiltering({
     [selectionActive, effectiveSelection, autoTimelineRange]
   );
 
-  // Reset time selection on window change
+  // Track if this is the first render to avoid resetting on mount
+  const isFirstRender = useRef(true);
+
+  // Reset time selection on window change (but not on initial mount)
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    // User changed the time window, clear the brush selection
     setSelectedTimeRange(null);
   }, [timeWindowDays]);
 
-  // Reset agent filter when option disappears
+  // Reset agent filter when option disappears (only after initial load)
   useEffect(() => {
     if (agentFilter === 'all') {
       return;
     }
-    if (!agentFilterOptions.some((option) => option.id === agentFilter)) {
+    // Only reset if we have logs loaded AND the filter doesn't exist
+    if (logsWithTime.length > 0 && !agentFilterOptions.some((option) => option.id === agentFilter)) {
       setAgentFilter('all');
+      sessionStorage.setItem('snoopty.agentFilter', 'all');
     }
-  }, [agentFilter, agentFilterOptions]);
+  }, [agentFilter, agentFilterOptions, logsWithTime.length]);
 
   const handleTimeWindowInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {

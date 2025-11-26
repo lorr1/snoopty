@@ -6,79 +6,102 @@
  * Uses Recharts for all visualizations.
  */
 
-import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type {
   InteractionLog,
   ToolMetricsDataResponse,
-  ToolCallRow,
-  ToolResultRow,
+  ToolUsageRow,
+  UniqueToolCall,
 } from '../../../shared/types';
-import ToolUsageChart from '../components/charts/ToolUsageChart';
+import TokenBreakdownChart from '../components/charts/TokenBreakdownChart';
 import ToolReturnSizeChart from '../components/charts/ToolReturnSizeChart';
-import TimeSeriesChart from '../components/charts/TimeSeriesChart';
+import ToolUsageChart from '../components/charts/ToolUsageChart';
 
 /**
- * Aggregate metrics from InteractionLogs client-side.
- * Extracts tool metrics and flattens them into chart-ready rows.
+ * Extract unique tool calls from InteractionLogs using backend-computed tool metrics.
+ * The backend already extracts tool call IDs and computes accurate token counts.
  */
-function aggregateMetrics(logs: InteractionLog[]): ToolMetricsDataResponse {
-  const calls: ToolCallRow[] = [];
-  const results: ToolResultRow[] = [];
-  let logsWithTools = 0;
+function extractUniqueToolCalls(logs: InteractionLog[]): UniqueToolCall[] {
+  const toolCallMap = new Map<string, UniqueToolCall>();
 
   for (const log of logs) {
-    const { toolMetrics, agentTag, request, timestamp, id } = log;
-
-    if (!toolMetrics || !toolMetrics.tools || toolMetrics.tools.length === 0) {
-      continue;
-    }
-
-    logsWithTools++;
-
-    // Extract model from request
-    const body = request.body as { model?: string } | undefined;
+    const body = log.request.body as { model?: string } | undefined;
     const model = body?.model;
-    const agentTagLabel = agentTag?.label;
+    const agentTagLabel = log.agentTag?.label;
 
-    // Flatten tool usage into rows
-    for (const tool of toolMetrics.tools) {
-      if (tool.callCount > 0) {
-        calls.push({
-          logId: id,
-          timestamp,
-          toolName: tool.toolName,
-          callCount: tool.callCount,
-          agentTag: agentTagLabel,
-          model,
-        });
-      }
-
-      // Flatten individual return tokens
-      for (const returnTokens of tool.returnTokenCounts) {
-        results.push({
-          logId: id,
-          timestamp,
-          toolName: tool.toolName,
-          returnTokens,
-          agentTag: agentTagLabel,
-          model,
-        });
+    // Use backend-computed tool call details if available
+    if (log.toolMetrics?.toolCalls) {
+      for (const toolCall of log.toolMetrics.toolCalls) {
+        // Only add if we haven't seen this tool call ID before (dedup across logs)
+        if (!toolCallMap.has(toolCall.toolCallId)) {
+          toolCallMap.set(toolCall.toolCallId, {
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            toolType: toolCall.toolType,
+            timestamp: toolCall.timestamp,
+            logId: log.id,
+            agentTag: agentTagLabel,
+            model,
+            returnTokens: toolCall.returnTokens,
+          });
+        }
       }
     }
   }
 
+  const result = Array.from(toolCallMap.values());
+  return result;
+}
+
+/**
+ * Aggregate metrics from InteractionLogs client-side.
+ * Extracts unique tool calls and token usage.
+ */
+function aggregateMetrics(logs: InteractionLog[]): ToolMetricsDataResponse {
+  const toolCalls = extractUniqueToolCalls(logs);
+
+  // Token usage per log
+  const usage: ToolUsageRow[] = [];
+  for (const log of logs) {
+    const { tokenUsage, agentTag, request, timestamp, id } = log;
+    if (!tokenUsage) continue;
+
+    const body = request.body as { model?: string } | undefined;
+    const model = body?.model;
+    const agentTagLabel = agentTag?.label;
+
+    usage.push({
+      logId: id,
+      timestamp,
+      input_system_tokens: tokenUsage.custom?.input.segments['system']?.tokens || 0,
+      input_user_tokens: tokenUsage.custom?.input.segments['user']?.tokens || 0,
+      input_assistant_tokens: tokenUsage.custom?.input.segments['assistant']?.tokens || 0,
+      input_thinking_tokens: tokenUsage.custom?.input.segments['thinking']?.tokens || 0,
+      input_tool_definition_tokens: tokenUsage.custom?.input.segments['tool']?.tokens || 0,
+      input_tool_use_tokens: tokenUsage.custom?.input.segments['tool_use']?.tokens || 0,
+      input_tool_return_tokens: tokenUsage.custom?.input.segments['tool_return']?.tokens || 0,
+      output_assistant_tokens: tokenUsage.custom?.output.segments['assistant']?.tokens || 0,
+      output_thinking_tokens: tokenUsage.custom?.output.segments['thinking']?.tokens || 0,
+      output_tool_use_tokens: tokenUsage.custom?.output.segments['tool_use']?.tokens || 0,
+      agentTag: agentTagLabel,
+      model,
+    });
+  }
+
+  const logsWithTools = new Set(toolCalls.map(tc => tc.logId)).size;
+
   return {
-    calls,
-    results,
-    filters: {},
+    toolCalls,
+    usage,
     totalLogs: logs.length,
     logsWithTools,
   };
 }
 
-export default function Dashboard(): JSX.Element {
+export default function Dashboard() {
   const location = useLocation();
+  const navigate = useNavigate();
   const selectedLogIds = (location.state as { logIds?: string[] })?.logIds;
 
   const [data, setData] = useState<ToolMetricsDataResponse | null>(null);
@@ -130,57 +153,35 @@ export default function Dashboard(): JSX.Element {
     fetchDataAndAggregate();
   }, [selectedLogIds]);
 
-  if (isLoading) {
-    return (
-      <div className="dashboard-container">
-        <div className="dashboard-header">
-          <h1>Dashboard</h1>
-          <Link to="/" className="back-link">← Back to Timeline</Link>
-        </div>
-        <div className="dashboard-loading">Loading metrics data...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="dashboard-container">
-        <div className="dashboard-header">
-          <h1>Dashboard</h1>
-          <Link to="/" className="back-link">← Back to Timeline</Link>
-        </div>
-        <div className="dashboard-error">
-          <p>Error loading metrics: {error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="dashboard-container">
-        <div className="dashboard-header">
-          <h1>Dashboard</h1>
-          <Link to="/" className="back-link">← Back to Timeline</Link>
-        </div>
-        <div className="dashboard-empty">No data available</div>
-      </div>
-    );
-  }
-
-  // Compute some basic stats
-  const totalToolCalls = data.calls.reduce((sum, row) => sum + row.callCount, 0);
-  const totalToolResults = data.results.length;
-  const uniqueTools = new Set(data.results.map((r) => r.toolName)).size;
+  // Compute some basic stats (only when data is available)
+  const totalToolCalls = data?.toolCalls.length ?? 0;
+  const toolCallsWithResults = data?.toolCalls.filter(tc => tc.returnTokens !== undefined).length ?? 0;
+  const uniqueTools = data ? new Set(data.toolCalls.map((tc) => tc.toolName)).size : 0;
 
   return (
     <div className="dashboard-container">
       <div className="dashboard-header">
         <h1>Tool Metrics Dashboard</h1>
-        <Link to="/" className="back-link">← Back to Timeline</Link>
+        <button onClick={() => navigate(-1)} className="secondary-button">← Back to Timeline</button>
       </div>
 
-      <div className="dashboard-stats">
+      {isLoading && (
+        <div className="dashboard-loading">Loading metrics data...</div>
+      )}
+
+      {error && (
+        <div className="dashboard-error">
+          <p>Error loading metrics: {error}</p>
+        </div>
+      )}
+
+      {!isLoading && !error && !data && (
+        <div className="dashboard-empty">No data available</div>
+      )}
+
+      {!isLoading && !error && data && (
+        <>
+          <div className="dashboard-stats">
         <div className="stat-card">
           <div className="stat-label">Total Logs</div>
           <div className="stat-value">{data.totalLogs}</div>
@@ -190,12 +191,12 @@ export default function Dashboard(): JSX.Element {
           <div className="stat-value">{data.logsWithTools}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Tool Calls</div>
+          <div className="stat-label">Unique Tool Calls</div>
           <div className="stat-value">{totalToolCalls}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Tool Results</div>
-          <div className="stat-value">{totalToolResults}</div>
+          <div className="stat-label">Calls with Results</div>
+          <div className="stat-value">{toolCallsWithResults}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Unique Tools</div>
@@ -205,21 +206,23 @@ export default function Dashboard(): JSX.Element {
 
       <div className="dashboard-content">
         <div className="dashboard-charts">
-          <ToolUsageChart data={data.calls} />
-          <ToolReturnSizeChart data={data.results} />
-          <TimeSeriesChart data={data.calls} />
+          <TokenBreakdownChart data={data.usage} />
+          <ToolUsageChart data={data.toolCalls} />
+          <ToolReturnSizeChart data={data.toolCalls} />
         </div>
 
         <div className="dashboard-section">
           <h2>Raw Data</h2>
-          <p>Tool Calls: {data.calls.length} rows</p>
-          <p>Tool Results: {data.results.length} rows</p>
+          <p>Unique Tool Calls: {data.toolCalls.length}</p>
+          <p>Tool Calls with Results: {toolCallsWithResults}</p>
           <details>
             <summary>View Raw Data (Click to expand)</summary>
             <pre>{JSON.stringify(data, null, 2)}</pre>
           </details>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

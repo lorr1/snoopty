@@ -6,11 +6,11 @@
  * - /dashboard : Metrics dashboard view (new)
  */
 
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Timeline from './pages/Timeline';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
+import Timeline from './pages/Timeline';
 
-export default function App(): JSX.Element {
+export default function App() {
   return (
     <BrowserRouter basename="/ui">
       <Routes>

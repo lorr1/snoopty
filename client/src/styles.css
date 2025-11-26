@@ -159,6 +159,16 @@ a.secondary-button:hover {
   gap: 0.75rem;
 }
 
+.timeseries-controls__left > * {
+  display: flex;
+  align-items: flex-end;
+}
+
+.timeseries-controls__right > * {
+  display: flex;
+  align-items: center;
+}
+
 .timeseries-controls__range {
   display: inline-flex;
   align-items: center;
@@ -173,6 +183,7 @@ a.secondary-button:hover {
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 0.85rem;
+  line-height: 1;
 }
 
 .timeseries-controls__endpoint {
@@ -191,6 +202,7 @@ a.secondary-button:hover {
   font-size: 0.85rem;
   color: #0f172a;
   background: #ffffff;
+  line-height: 1;
 }
 
 .timeline-panel,

@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import TimelineBrush from '../components/TimelineBrush';
 import AppHeader from '../components/AppHeader';
-import FilterControls from '../components/FilterControls';
-import TimelineListSection from '../components/TimelineListSection';
 import DetailsPanel from '../components/DetailsPanel';
+import FilterControls from '../components/FilterControls';
+import TimelineBrush from '../components/TimelineBrush';
+import TimelineListSection from '../components/TimelineListSection';
 import { useLogData, useLogFiltering, useLogSelection } from '../hooks';
 
 /**
@@ -13,7 +13,7 @@ import { useLogData, useLogFiltering, useLogSelection } from '../hooks';
  *  3. Rendering the detail pane with token summaries and raw payload inspectors.
  */
 
-export default function Timeline(): JSX.Element {
+export default function Timeline() {
   // Core data hook
   const {
     isLoading,
@@ -93,6 +93,7 @@ export default function Timeline(): JSX.Element {
         hasFirstPageLoaded={hasFirstPageLoaded}
         isRecomputing={isRecomputing}
         filteredLogsCount={filteredLogs.length}
+        filteredFileNames={filteredFileNames}
         recomputeMessage={recomputeMessage}
         onRefresh={() => fetchLogs()}
         onRecompute={handleRecompute}

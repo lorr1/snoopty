@@ -82,13 +82,18 @@ export interface TokenUsageSummary {
 // Tool Metrics Types
 // =============================================================================
 
+export interface ToolCallDetail {
+  toolCallId: string;
+  toolName: string;
+  toolType: 'mcp' | 'regular';
+  timestamp: string;
+  returnTokens?: number;
+}
+
 export interface ToolUsageDetail {
   toolName: string;
   callCount: number;
   totalReturnTokens: number;
-  avgReturnTokens: number;
-  maxReturnTokens: number;
-  minReturnTokens: number | null;
   returnTokenCounts: number[];
 }
 
@@ -97,6 +102,7 @@ export interface ToolMetricsSummary {
   totalToolCalls: number;
   totalToolResults: number;
   tools: ToolUsageDetail[];
+  toolCalls: ToolCallDetail[];
 }
 
 // =============================================================================
@@ -160,38 +166,47 @@ export interface MetricsFilters {
 }
 
 /**
- * Flattened tool result row for charting.
- * One row per individual tool result.
+ * Unique tool call extracted from logs.
+ * Each tool call appears once with its metadata and return size.
  */
-export interface ToolResultRow {
+export interface UniqueToolCall {
+  toolCallId: string;
+  toolName: string;
+  toolType: 'mcp' | 'regular';
+  timestamp: string;
+  logId: string;
+  agentTag?: string;
+  model?: string;
+  returnTokens?: number;
+}
+
+/**
+ * Flattened tool usage row for charting.
+ * One row per log with token breakdown.
+ */
+export interface ToolUsageRow {
   logId: string;
   timestamp: string;
-  toolName: string;
-  returnTokens: number;
+  input_system_tokens: number;
+  input_user_tokens: number;
+  input_assistant_tokens: number;
+  input_thinking_tokens: number;
+  input_tool_definition_tokens: number;
+  input_tool_use_tokens: number;
+  input_tool_return_tokens: number;
+  output_assistant_tokens: number;
+  output_thinking_tokens: number;
+  output_tool_use_tokens: number;
   agentTag?: string | undefined;
   model?: string | undefined;
 }
 
 /**
- * Flattened tool call row for charting.
- * One row per tool per log.
- */
-export interface ToolCallRow {
-  logId: string;
-  timestamp: string;
-  toolName: string;
-  callCount: number;
-  agentTag?: string | undefined;
-  model?: string | undefined;
-}
-
-/**
- * Response containing filtered tool usage data.
+ * Response containing tool call data and metrics.
  */
 export interface ToolMetricsDataResponse {
-  results: ToolResultRow[];
-  calls: ToolCallRow[];
-  filters: MetricsFilters;
+  toolCalls: UniqueToolCall[];
+  usage: ToolUsageRow[];
   totalLogs: number;
   logsWithTools: number;
 }

@@ -5,6 +5,7 @@ interface AppHeaderProps {
   hasFirstPageLoaded: boolean;
   isRecomputing: boolean;
   filteredLogsCount: number;
+  filteredFileNames: string[];
   recomputeMessage: string | null;
   onRefresh: () => void;
   onRecompute: () => void;
@@ -15,6 +16,7 @@ export default function AppHeader({
   hasFirstPageLoaded,
   isRecomputing,
   filteredLogsCount,
+  filteredFileNames,
   recomputeMessage,
   onRefresh,
   onRecompute,
@@ -26,7 +28,7 @@ export default function AppHeader({
         <p className="app-tagline">Anthropic proxy inspector</p>
       </div>
       <div className="header-actions">
-        <Link to="/dashboard" className="secondary-button">
+        <Link to="/dashboard" state={{ logIds: filteredFileNames }} className="secondary-button">
           Dashboard
         </Link>
         <button

@@ -311,7 +311,6 @@ export class MetricsWorker {
         return true;
       }
 
-      console.log('[LAUREL] Checking log path:', log.path);
       if (log.path.includes('/messages')) {
         if (analyzerNames.includes('tool-metrics') && !log.toolMetrics) {
           logger.debug(

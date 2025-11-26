@@ -11,13 +11,23 @@
  * Uses the shared tokenCounter utility for accuracy.
  */
 
-import type { InteractionLog, ToolMetricsSummary, ToolUsageDetail } from '../../shared/types';
+import type { InteractionLog, ToolCallDetail, ToolMetricsSummary, ToolUsageDetail } from '../../shared/types';
 import { logger } from '../logger';
 import { countContentTokens } from '../utils/tokenCounter';
 import type { MetricsAnalyzer } from './MetricsAnalyzer';
 
 export class ToolMetricsAnalyzer implements MetricsAnalyzer<ToolMetricsSummary> {
   name = 'tool-metrics';
+
+  /**
+   * Classify tool as MCP or regular based on naming convention.
+   * MCP tools start with 'mcp__' or are named 'ListMcpResourcesTool' or 'ReadMcpResourceTool'.
+   */
+  private classifyToolType(toolName: string): 'mcp' | 'regular' {
+    return toolName.startsWith('mcp__')
+      ? 'mcp'
+      : 'regular';
+  }
 
   async analyze(log: InteractionLog): Promise<ToolMetricsSummary | null> {
     // Only analyze /messages endpoints
@@ -55,6 +65,7 @@ export class ToolMetricsAnalyzer implements MetricsAnalyzer<ToolMetricsSummary> 
     );
 
     const toolUsage = new Map<string, ToolUsageDetail>();
+    const toolCallDetails: ToolCallDetail[] = [];
 
     // 1. Extract tool definitions from request
     const toolDefinitions = this.extractToolDefinitions(log);
@@ -64,25 +75,19 @@ export class ToolMetricsAnalyzer implements MetricsAnalyzer<ToolMetricsSummary> 
           toolName,
           callCount: 0,
           totalReturnTokens: 0,
-          avgReturnTokens: 0,
-          maxReturnTokens: 0,
-          minReturnTokens: null,
           returnTokenCounts: []
         });
       }
     }
 
-    // 2. Extract tool_use blocks from response (assistant calls tools)
-    const toolCalls = this.extractToolCalls(log);
-    for (const toolName of toolCalls) {
+    // 2. Extract tool_use blocks from response (for counting NEW calls)
+    const toolCallsInResponse = this.extractToolCallsWithIds(log);
+    for (const { toolCallId, toolName } of toolCallsInResponse) {
       if (!toolUsage.has(toolName)) {
         toolUsage.set(toolName, {
           toolName,
           callCount: 0,
           totalReturnTokens: 0,
-          avgReturnTokens: 0,
-          maxReturnTokens: 0,
-          minReturnTokens: null,
           returnTokenCounts: []
         });
       }
@@ -90,41 +95,38 @@ export class ToolMetricsAnalyzer implements MetricsAnalyzer<ToolMetricsSummary> 
       detail.callCount++;
     }
 
-    // 3. Extract tool_result blocks from request and count tokens
+    // 3. Extract COMPLETED tool calls from REQUEST
+    // In the request, we have both tool_use (from previous turn) and tool_result blocks
+    // Extract them together to get complete records with return tokens
     try {
-      const toolResults = await this.extractAndCountToolResults(log, model);
-      for (const { toolName, tokenCount } of toolResults) {
+      const completedToolCalls = await this.extractCompletedToolCallsFromRequest(log, model);
+
+      for (const { toolCallId, toolName, timestamp, returnTokens } of completedToolCalls) {
+        // Add to toolCallDetails array with ID
+        toolCallDetails.push({
+          toolCallId,
+          toolName,
+          toolType: this.classifyToolType(toolName),
+          timestamp,
+          returnTokens,
+        });
+
+        // Update aggregate stats
         if (!toolUsage.has(toolName)) {
-          // Tool result without prior definition (shouldn't happen, but handle it)
           toolUsage.set(toolName, {
             toolName,
             callCount: 0,
             totalReturnTokens: 0,
-            avgReturnTokens: 0,
-            maxReturnTokens: 0,
-            minReturnTokens: null,
             returnTokenCounts: []
           });
         }
         const detail = toolUsage.get(toolName)!;
-        detail.totalReturnTokens += tokenCount;
-        detail.returnTokenCounts.push(tokenCount);
-        detail.maxReturnTokens = Math.max(detail.maxReturnTokens, tokenCount);
-        detail.minReturnTokens =
-          detail.minReturnTokens === null
-            ? tokenCount
-            : Math.min(detail.minReturnTokens, tokenCount);
+        detail.totalReturnTokens += returnTokens;
+        detail.returnTokenCounts.push(returnTokens);
       }
     } catch (error) {
-      logger.error({ logId: log.id, error }, 'Failed to count tool result tokens');
+      logger.error({ logId: log.id, error }, 'Failed to extract completed tool calls');
       throw error;
-    }
-
-    // 4. Compute averages
-    for (const detail of toolUsage.values()) {
-      if (detail.returnTokenCounts.length > 0) {
-        detail.avgReturnTokens = detail.totalReturnTokens / detail.returnTokenCounts.length;
-      }
     }
 
     // If no tools found, return null
@@ -138,7 +140,8 @@ export class ToolMetricsAnalyzer implements MetricsAnalyzer<ToolMetricsSummary> 
       totalToolsAvailable: toolDefinitions.size,
       totalToolCalls: toolDetails.reduce((sum, d) => sum + d.callCount, 0),
       totalToolResults: toolDetails.reduce((sum, d) => sum + d.returnTokenCounts.length, 0),
-      tools: toolDetails
+      tools: toolDetails,
+      toolCalls: toolCallDetails
     };
   }
 
@@ -165,17 +168,20 @@ export class ToolMetricsAnalyzer implements MetricsAnalyzer<ToolMetricsSummary> 
   }
 
   /**
-   * Extract tool_use blocks from response content.
+   * Extract tool_use blocks from response content WITH IDs.
    */
-  private extractToolCalls(log: InteractionLog): string[] {
-    const toolNames: string[] = [];
+  private extractToolCallsWithIds(log: InteractionLog): Array<{ toolCallId: string; toolName: string }> {
+    const toolCalls: Array<{ toolCallId: string; toolName: string }> = [];
 
     try {
       const body = log.response?.body as any;
       if (body && Array.isArray(body.content)) {
         for (const block of body.content) {
-          if (block && block.type === 'tool_use' && typeof block.name === 'string') {
-            toolNames.push(block.name);
+          if (block && block.type === 'tool_use' && typeof block.name === 'string' && typeof block.id === 'string') {
+            toolCalls.push({
+              toolCallId: block.id,
+              toolName: block.name
+            });
           }
         }
       }
@@ -183,55 +189,87 @@ export class ToolMetricsAnalyzer implements MetricsAnalyzer<ToolMetricsSummary> 
       // Ignore parsing errors
     }
 
-    return toolNames;
+    return toolCalls;
   }
 
   /**
-   * Extract tool_result blocks from request messages and count their tokens.
-   *
-   * Uses Anthropic's token counting API for accuracy via the shared tokenCounter utility.
-   *
-   * Returns array of { toolName, tokenCount } where tokenCount is the actual
-   * token count from Anthropic API.
+   * Extract COMPLETED tool calls from request messages.
+   * Finds tool_use blocks (from previous assistant turn) paired with their tool_result blocks.
+   * Returns complete records with toolCallId, toolName, timestamp, and returnTokens.
    */
-  private async extractAndCountToolResults(
+  private async extractCompletedToolCallsFromRequest(
     log: InteractionLog,
     model: string
-  ): Promise<Array<{ toolName: string; tokenCount: number }>> {
-    const results: Array<{ toolName: string; content: string }> = [];
+  ): Promise<Array<{ toolCallId: string; toolName: string; timestamp: string; returnTokens: number }>> {
+    const completedCalls: Array<{ toolCallId: string; toolName: string; timestamp: string; returnTokens: number }> = [];
 
     try {
       const body = log.request.body as any;
-      if (body && Array.isArray(body.messages)) {
-        for (const message of body.messages) {
-          if (message && Array.isArray(message.content)) {
-            for (const block of message.content) {
-              if (block && block.type === 'tool_result') {
-                // Try to find the tool name by matching tool_use_id
-                const toolName = this.inferToolNameFromResult(log, block.tool_use_id);
-                if (toolName) {
-                  const content = this.extractToolResultContent(block);
-                  results.push({ toolName, content });
-                }
-              }
+      if (!body || !Array.isArray(body.messages)) {
+        return completedCalls;
+      }
+
+      // First, extract all tool_use blocks from the request (from previous assistant turn)
+      const toolUseMap = new Map<string, { toolName: string; timestamp: string }>();
+
+      for (const message of body.messages) {
+        if (message && Array.isArray(message.content)) {
+          for (const block of message.content) {
+            if (block && block.type === 'tool_use' && block.id && block.name) {
+              // Use this log's timestamp as approximation (the actual call was made in a previous log)
+              // but we use the tool_use presence here to know when the call was conceptually made
+              toolUseMap.set(block.id, {
+                toolName: block.name,
+                timestamp: log.timestamp // This is close enough - the call was made just before this log
+              });
             }
           }
         }
       }
+
+      // Now extract tool_result blocks and match them with tool_use
+      const toolResults: Array<{ toolCallId: string; content: string }> = [];
+
+      for (const message of body.messages) {
+        if (message && Array.isArray(message.content)) {
+          for (const block of message.content) {
+            if (block && block.type === 'tool_result' && block.tool_use_id) {
+              const content = this.extractToolResultContent(block);
+              toolResults.push({
+                toolCallId: block.tool_use_id,
+                content
+              });
+            }
+          }
+        }
+      }
+
+      // Count tokens for all tool results in parallel
+      const tokenCounts = await Promise.all(
+        toolResults.map(async ({ toolCallId, content }) => {
+          const tokenCount = await countContentTokens(model, content);
+          return { toolCallId, tokenCount };
+        })
+      );
+
+      // Match tool_use with tool_result
+      for (const { toolCallId, tokenCount } of tokenCounts) {
+        const toolUse = toolUseMap.get(toolCallId);
+        if (toolUse) {
+          completedCalls.push({
+            toolCallId,
+            toolName: toolUse.toolName,
+            timestamp: toolUse.timestamp,
+            returnTokens: tokenCount
+          });
+        }
+      }
     } catch (error) {
-      logger.error({ logId: log.id, error }, 'Error extracting tool results');
+      logger.error({ logId: log.id, error }, 'Error extracting completed tool calls');
       throw error;
     }
 
-    // Count tokens for all tool results in parallel using the shared utility
-    const countedResults = await Promise.all(
-      results.map(async ({ toolName, content }) => {
-        const tokenCount = await countContentTokens(model, content);
-        return { toolName, tokenCount };
-      })
-    );
-
-    return countedResults;
+    return completedCalls;
   }
 
   /**
