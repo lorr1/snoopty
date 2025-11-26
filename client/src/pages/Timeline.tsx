@@ -48,6 +48,7 @@ export default function Timeline() {
     handleLogIdSearchChange,
     handleBrushSelection,
     handleClearTimeSelection,
+    handleClearAllFilters,
   } = useLogFiltering({
     logsWithTime,
     earliestTimestampMs,
@@ -97,7 +98,10 @@ export default function Timeline() {
         filteredLogsCount={filteredLogs.length}
         filteredFileNames={filteredFileNames}
         recomputeMessage={recomputeMessage}
-        onRefresh={() => fetchLogs()}
+        onRefresh={() => {
+          handleClearAllFilters();
+          fetchLogs();
+        }}
         onRecompute={handleRecompute}
       />
       <main className="app-main">

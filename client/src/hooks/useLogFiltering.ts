@@ -141,6 +141,7 @@ export interface UseLogFilteringReturn {
   handleLogIdSearchChange: (event: ChangeEvent<HTMLInputElement>) => void;
   handleBrushSelection: (range: TimeRange | null) => void;
   handleClearTimeSelection: () => void;
+  handleClearAllFilters: () => void;
 }
 
 export function useLogFiltering({
@@ -408,6 +409,21 @@ export function useLogFiltering({
     setSelectedTimeRange(null);
   }, []);
 
+  const handleClearAllFilters = useCallback(() => {
+    setTimeWindowDays(1);
+    setSelectedTimeRange(null);
+    setEndpointFilter('messages');
+    setAgentFilter('all');
+    setLogIdSearch('');
+
+    // Clear sessionStorage as well
+    sessionStorage.setItem('snoopty.timeWindowDays', '1');
+    sessionStorage.setItem('snoopty.selectedTimeRange', 'null');
+    sessionStorage.setItem('snoopty.endpointFilter', 'messages');
+    sessionStorage.setItem('snoopty.agentFilter', 'all');
+    sessionStorage.setItem('snoopty.logIdSearch', '');
+  }, []);
+
   return {
     timeWindowDays,
     selectedTimeRange,
@@ -428,5 +444,6 @@ export function useLogFiltering({
     handleLogIdSearchChange,
     handleBrushSelection,
     handleClearTimeSelection,
+    handleClearAllFilters,
   };
 }

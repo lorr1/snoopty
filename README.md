@@ -119,11 +119,9 @@ npm start
 Configure Claude Code to use Snoopty as the API endpoint:
 
 ```bash
-# Default (direct to Anthropic)
-claude
-
 # Use Snoopty proxy (always port 8787 for API, regardless of dev/prod mode)
-export ANTHROPIC_BASE_URL=http://localhost:8787 claude
+# Yes, you need to give the API key here again.
+ANTHROPIC_BASE_URL=http://localhost:8787 ANTHROPIC_API_KEY="sk-ant-XXX" claude
 ```
 
 **Note:** Claude Code may complain about needing to logout. You can safely ignore this message - it will still work.
