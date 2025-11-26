@@ -127,7 +127,7 @@ export class AgentTagAnalyzer implements MetricsAnalyzer<AgentTagInfo> {
   name = 'agent-tag';
 
   async analyze(log: InteractionLog): Promise<AgentTagInfo | null> {
-    logger.info(
+    logger.debug(
       { logId: log.id, path: log.path },
       'AgentTagAnalyzer: Starting analysis'
     );

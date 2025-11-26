@@ -59,7 +59,7 @@ export class ToolMetricsAnalyzer implements MetricsAnalyzer<ToolMetricsSummary> 
       return null;
     }
 
-    logger.info(
+    logger.debug(
       { logId: log.id, path: log.path, model },
       'ToolMetricsAnalyzer: Starting analysis'
     );

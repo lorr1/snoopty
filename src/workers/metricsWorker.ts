@@ -44,7 +44,7 @@ export class MetricsWorker {
     this.processExisting = options.processExisting ?? true;
     this.watchForNew = options.watchForNew ?? true;
 
-    logger.info(
+    logger.debug(
       {
         logDir: this.logDir,
         pollInterval: this.pollInterval,
@@ -69,26 +69,26 @@ export class MetricsWorker {
 
     // Log registered analyzers
     const analyzers = globalMetricsRegistry.getAnalyzerNames();
-    logger.info({ analyzers }, 'MetricsWorker: Registered analyzers');
+    logger.debug({ analyzers }, 'MetricsWorker: Registered analyzers');
 
     // Process existing logs on startup
     if (this.processExisting) {
-      logger.info('MetricsWorker: Processing existing logs');
+      logger.debug('MetricsWorker: Processing existing logs');
       await this.processExistingLogs();
     } else {
-      logger.info('MetricsWorker: Skipping existing logs (processExisting=false)');
+      logger.debug('MetricsWorker: Skipping existing logs (processExisting=false)');
     }
 
     // Start watching for new logs
     if (this.watchForNew) {
-      logger.info('MetricsWorker: Starting file watcher');
+      logger.debug('MetricsWorker: Starting file watcher');
       this.startWatching();
     } else {
-      logger.info('MetricsWorker: Not watching for new files (watchForNew=false)');
+      logger.debug('MetricsWorker: Not watching for new files (watchForNew=false)');
     }
 
     // Start polling for unprocessed logs
-    logger.info({ pollInterval: this.pollInterval }, 'MetricsWorker: Starting polling');
+    logger.debug({ pollInterval: this.pollInterval }, 'MetricsWorker: Starting polling');
     this.startPolling();
 
     logger.info('MetricsWorker: Started successfully');
@@ -353,8 +353,7 @@ export class MetricsWorker {
       return;
     }
 
-    this.processingQueue.add(filename);
-    logger.info(
+    this.processingQueue.add(filename);    logger.debug(
       { filename, queueSize: this.processingQueue.size, force },
       'MetricsWorker: Added file to processing queue'
     );
@@ -367,13 +366,13 @@ export class MetricsWorker {
       const content = await fs.readFile(filePath, 'utf-8');
       const log = JSON.parse(content) as InteractionLog;
 
-      logger.info(
+      logger.debug(
         { filename, logId: log.id, path: log.path, force },
         'MetricsWorker: Parsed log file, running analyzers'
       );
 
       // Log what metrics already exist
-      logger.info(
+      logger.debug(
         {
           filename,
           hasToolMetrics: !!log.toolMetrics,
@@ -389,7 +388,7 @@ export class MetricsWorker {
       const results = await globalMetricsRegistry.analyzeAll(log, force);
       const duration = Date.now() - startTime;
 
-      logger.info(
+      logger.debug(
         {
           filename,
           analyzers: results.size,
@@ -407,7 +406,7 @@ export class MetricsWorker {
       let updated = false;
 
       for (const [analyzerName, result] of results.entries()) {
-        logger.info(
+        logger.debug(
           {
             filename,
             analyzerName,
@@ -427,7 +426,7 @@ export class MetricsWorker {
             );
           } else {
             const resultObj = result as any;
-            logger.info(
+            logger.debug(
               {
                 filename,
                 totalToolCalls: resultObj.totalToolCalls,
@@ -450,7 +449,7 @@ export class MetricsWorker {
             const resultObj = result as any;
             // The analyzer returns { system_totals, custom } but we only want the custom part
             const customData = resultObj.custom;
-            logger.info(
+            logger.debug(
               {
                 filename,
                 inputTokens: customData.input?.totalTokens,
@@ -471,7 +470,7 @@ export class MetricsWorker {
             );
           } else {
             const resultObj = result as any;
-            logger.info(
+            logger.debug(
               {
                 filename,
                 agentId: resultObj.id,
@@ -487,9 +486,9 @@ export class MetricsWorker {
 
       // Write back to file if updated
       if (updated) {
-        logger.info({ filename }, 'MetricsWorker: Writing updated log back to file');
+        logger.debug({ filename }, 'MetricsWorker: Writing updated log back to file');
         await fs.writeFile(filePath, JSON.stringify(log, null, 2), 'utf-8');
-        logger.info(
+        logger.debug(
           { filename, analyzers: results.size },
           'MetricsWorker: Successfully updated log with metrics'
         );

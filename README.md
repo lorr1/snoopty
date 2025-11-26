@@ -48,51 +48,139 @@ UPSTREAM_API_KEY="sk-ant-XXX"
 UPSTREAM_BASE_URL=https://api.anthropic.com
 PORT=8787
 LOG_DIR=logs
-LOG_LEVEL=info
+LOG_LEVEL=info  # Options: debug, info, warn, error (default: info)
 ```
+
+**Configuration options:**
+- `UPSTREAM_API_KEY`: Your Anthropic API key (required)
+- `UPSTREAM_BASE_URL`: Anthropic API endpoint (default: https://api.anthropic.com)
+- `PORT`: Port for the proxy server (default: 8787)
+- `LOG_DIR`: Directory for storing interaction logs (default: logs)
+- `LOG_LEVEL`: Logging verbosity level (default: info)
+  - `debug`: Verbose output including all internal operations
+  - `info`: Normal operation logs (proxy requests, startup/shutdown, important events)
+  - `warn`: Warnings and errors only
+  - `error`: Errors only
 
 ### Running
 
-**Development** (with hot-reload):
+#### Development Mode (with hot-reload)
+
+In development, you need to run **two separate servers**:
+
 ```bash
-# Terminal 1 - Backend proxy server
+# Terminal 1 - Backend proxy server (port 8787)
 npm run dev
 
-# Terminal 2 - Frontend dev server
+# Terminal 2 - Frontend development server (port 5173)
 npm run dev:ui
 ```
 
-**Production**:
+**What's happening:**
+- **Backend server** (`npm run dev`) on port 8787:
+  - Proxies all `/v1/*` requests to Anthropic API
+  - Logs interactions to `logs/` directory
+  - Provides REST API endpoints at `/api/logs`
+  - Runs background workers for metrics processing
+  - Does NOT serve the UI in development mode
+
+- **Frontend server** (`npm run dev:ui`) on port 5173:
+  - Serves the React UI with hot module replacement
+  - Automatically proxies API calls to backend on port 8787
+  - Access the UI at `http://localhost:5173`
+
+#### Production Mode
+
+In production, everything runs from a single server:
+
 ```bash
+# Build both backend and frontend
 npm run build
+
+# Run the production server (port 8787)
 npm start
+# Or explicitly set NODE_ENV for production mode:
+# NODE_ENV=production npm start
 ```
 
-The proxy runs on `http://localhost:8787` and the UI is available at `http://localhost:8787/ui`.
+**What's happening:**
+- Single server on port 8787 serves everything:
+  - API proxy and logging functionality
+  - Static UI files from built React app
+  - Access the UI at `http://localhost:8787/ui`
+
+**Note:** The server automatically detects production mode when:
+- `NODE_ENV=production` is set, OR
+- Running compiled JavaScript (not via ts-node-dev)
+- If you see a development mode message at `/ui`, ensure you've run `npm run build` first
 
 ### Using the Proxy
 
-Point your Anthropic client to the proxy:
+Configure Claude Code to use Snoopty as the API endpoint:
 
 ```bash
-# Before
+# Default (direct to Anthropic)
 claude
 
-# After
+# Use Snoopty proxy (always port 8787 for API, regardless of dev/prod mode)
 export ANTHROPIC_BASE_URL=http://localhost:8787 claude
 ```
 
-Claude will complain about needing to logout. Ignore it it should work.
+**Note:** Claude Code may complain about needing to logout. You can safely ignore this message - it will still work.
 
-All requests will be forwarded to Anthropic and logged locally.
+All requests will be forwarded to Anthropic and logged locally in the `logs/` directory.
+
+### Accessing the UI
+
+- **Development:** Open `http://localhost:5173/ui/` in your browser
+- **Production:** Open `http://localhost:8787/ui/` in your browser
+
+The UI will show all logged interactions, token usage, and provide analytics dashboards.
 
 
 ## Architecture
 
-- **Backend**: Node.js + Express + TypeScript
-- **Frontend**: React 19 + Vite
-- **Logs**: JSON files in `logs/` directory
-- **Metrics**: Asynchronous background processing with pluggable analyzers
+### Overview
+
+Snoopty consists of two main components:
+
+1. **Backend Proxy Server** (Node.js + Express + TypeScript)
+   - Intercepts API requests from Claude Code
+   - Forwards requests to Anthropic API with your API key
+   - Logs all interactions to JSON files
+   - Processes metrics asynchronously in background workers
+   - Serves REST API for the UI
+
+2. **Frontend Dashboard** (React 19 + Vite)
+   - Interactive timeline view of all requests
+   - Token usage breakdown and analytics
+   - Tool usage statistics
+   - Export functionality (Parquet format)
+
+### Data Flow
+
+1. Claude Code sends request to `http://localhost:8787/v1/*`
+2. Snoopty proxy:
+   - Captures the request
+   - Forwards to Anthropic API
+   - Streams the response back to Claude Code
+   - Logs the complete interaction to `logs/` directory
+3. Background workers process logs to compute:
+   - Token counts per role (system, user, assistant)
+   - Tool usage metrics
+   - Agent detection and tagging
+4. UI polls `/api/logs` to display real-time data
+
+### Key Directories
+
+- `src/` - Backend TypeScript source
+  - `proxy.ts` - Anthropic API proxy implementation
+  - `logStore.ts` - Log management and querying
+  - `metrics/` - Pluggable metrics analyzers
+  - `workers/` - Background processing
+- `client/` - Frontend React application
+- `logs/` - JSON log files (one per API interaction)
+- `dist/` - Built production files
 
 ## Special Thanks
 Huge shout out to [Pydantic AI's Logifre](https://pydantic.dev/logfire). Their chat view was huge inspiration. Also thanks to [Hyperparam](https://hyperparam.app/home). I used their parquet view a lot in early investigations of logs.

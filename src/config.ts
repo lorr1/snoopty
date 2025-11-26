@@ -14,6 +14,7 @@ export interface AppConfig {
   logDir: string;
   logLevel: string;
   appLogFile: string | null;
+  isDevelopment: boolean;
 }
 
 function resolvePort(): number {
@@ -34,6 +35,16 @@ export const appConfig: AppConfig = {
   appLogFile: process.env.APP_LOG_FILE === ''
     ? null
     : process.env.APP_LOG_FILE ?? DEFAULT_APP_LOG_FILE,
+  // Check if running in development mode:
+  // 1. NODE_ENV explicitly set to 'development'
+  // 2. Running via ts-node-dev
+  // 3. NOT explicitly set to 'production' AND has ts-node-dev markers
+  isDevelopment: process.env.NODE_ENV === 'development' ||
+    (process.env.NODE_ENV !== 'production' && (
+      process.argv.some(arg => arg.includes('ts-node-dev')) ||
+      process.argv[1]?.includes('ts-node-dev') ||
+      !!process.env.TS_NODE_DEV
+    )),
 };
 
 export function validateConfig(): void {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { countTokens } from '@anthropic-ai/tokenizer';
+import { countTokensSync } from '../utils/tokenizer';
 
 export type ChatPreviewVariant =
   | 'system'
@@ -52,7 +52,7 @@ export default function ChatPreviewModal({
       const chars = body.length;
       let tokens = 0;
       try {
-        tokens = body ? countTokens(body) : 0;
+        tokens = body ? countTokensSync(body) : 0;
       } catch {
         tokens = 0;
       }

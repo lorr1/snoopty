@@ -1,15 +1,15 @@
 import express from 'express';
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
 import { appConfig, validateConfig } from './config';
 import { ERROR_MESSAGES } from './constants';
 import { logger } from './logger';
-import { healthRouter, logsRouter, proxyRouter } from './routes';
-import { errorHandler } from './middleware/errorHandler';
-import { globalMetricsRegistry } from './metrics/MetricsAnalyzer';
-import { ToolMetricsAnalyzer } from './metrics/ToolMetricsAnalyzer';
-import { TokenBreakdownAnalyzer } from './metrics/TokenBreakdownAnalyzer';
 import { AgentTagAnalyzer } from './metrics/AgentTagAnalyzer';
+import { globalMetricsRegistry } from './metrics/MetricsAnalyzer';
+import { TokenBreakdownAnalyzer } from './metrics/TokenBreakdownAnalyzer';
+import { ToolMetricsAnalyzer } from './metrics/ToolMetricsAnalyzer';
+import { errorHandler } from './middleware/errorHandler';
+import { healthRouter, logsRouter, proxyRouter } from './routes';
 import { startMetricsWorker, stopMetricsWorker } from './workers/metricsWorker';
 
 /**
@@ -55,26 +55,45 @@ function registerRoutes(app: express.Express): void {
   // Anthropic proxy
   app.use('/v1', proxyRouter);
 
-  // Static UI serving
-  // In dev mode (ts-node-dev): __dirname is src/, so go up one level
-  // In prod mode (compiled): __dirname is dist/src/, so go up two levels
-  const isCompiledCode = __dirname.includes(path.join('dist', 'src'));
-  const projectRoot = isCompiledCode
-    ? path.resolve(__dirname, '..', '..')
-    : path.resolve(__dirname, '..');
-  const staticClientPath = path.join(projectRoot, 'dist', 'client');
-  const existingClientPath = fs.existsSync(staticClientPath) ? staticClientPath : undefined;
+  // Static UI serving - only in production mode
+  if (!appConfig.isDevelopment) {
+    // In dev mode (ts-node-dev): __dirname is src/, so go up one level
+    // In prod mode (compiled): __dirname is dist/src/, so go up two levels
+    const isCompiledCode = __dirname.includes(path.join('dist', 'src'));
+    const projectRoot = isCompiledCode
+      ? path.resolve(__dirname, '..', '..')
+      : path.resolve(__dirname, '..');
+    const staticClientPath = path.join(projectRoot, 'dist', 'client');
+    const existingClientPath = fs.existsSync(staticClientPath) ? staticClientPath : undefined;
 
-  if (existingClientPath) {
-    app.use('/ui', express.static(existingClientPath));
-    app.get('/ui', (_req, res) => {
-      res.sendFile(path.join(existingClientPath, 'index.html'));
-    });
-    app.get(/^\/ui\/.+$/, (_req, res) => {
-      res.sendFile(path.join(existingClientPath, 'index.html'));
+    if (existingClientPath) {
+      app.use('/ui', express.static(existingClientPath));
+      app.get('/ui', (_req, res) => {
+        res.sendFile(path.join(existingClientPath, 'index.html'));
+      });
+      app.get(/^\/ui\/.+$/, (_req, res) => {
+        res.sendFile(path.join(existingClientPath, 'index.html'));
+      });
+      app.get('/', (_req, res) => {
+        res.redirect('/ui');
+      });
+    }
+  } else {
+    // In development mode, provide helpful message
+    // Using app.use() to match /ui and all sub-paths like /ui/*
+    app.use('/ui', (_req, res) => {
+      res.status(200).json({
+        message: 'Development mode: UI is served by Vite dev server',
+        viteUrl: 'http://localhost:5173',
+        hint: 'Run "npm run dev:ui" in a separate terminal to start the Vite dev server'
+      });
     });
     app.get('/', (_req, res) => {
-      res.redirect('/ui');
+      res.status(200).json({
+        message: 'Development mode: UI is served by Vite dev server',
+        viteUrl: 'http://localhost:5173',
+        hint: 'Run "npm run dev:ui" in a separate terminal to start the Vite dev server'
+      });
     });
   }
 
@@ -90,7 +109,14 @@ async function bootstrap(): Promise<void> {
   // Validate configuration up front so we fail fast if required env vars are missing.
   validateConfig();
 
-  logger.info('Bootstrap: Registering metrics analyzers');
+  // Log development mode status for debugging
+  logger.debug({
+    isDevelopment: appConfig.isDevelopment,
+    NODE_ENV: process.env.NODE_ENV,
+    argv: process.argv,
+  }, 'Bootstrap: Environment detection');
+
+  logger.debug('Bootstrap: Registering metrics analyzers');
 
   // Register all metrics analyzers
   try {
@@ -102,14 +128,14 @@ async function bootstrap(): Promise<void> {
 
     for (const analyzer of analyzers) {
       globalMetricsRegistry.register(analyzer);
-      logger.info({ analyzer: analyzer.name }, 'Bootstrap: Registered analyzer');
+      logger.debug({ analyzer: analyzer.name }, 'Bootstrap: Registered analyzer');
     }
   } catch (error) {
     logger.error({ error }, 'Bootstrap: Error registering metrics analyzers');
     throw error;
   }
 
-  logger.info('Bootstrap: Starting metrics worker');
+  logger.debug('Bootstrap: Starting metrics worker');
 
   // Start the metrics worker
   try {
@@ -118,7 +144,7 @@ async function bootstrap(): Promise<void> {
       watchForNew: true,
       pollInterval: 5000,
     });
-    logger.info('Bootstrap: Metrics worker started successfully');
+    logger.debug('Bootstrap: Metrics worker started successfully');
   } catch (error) {
     logger.error({ error }, 'Bootstrap: Error starting metrics worker');
     throw error;
@@ -138,6 +164,10 @@ async function bootstrap(): Promise<void> {
         port: appConfig.port,
         upstreamBaseUrl: appConfig.upstreamBaseUrl,
         logDir: appConfig.logDir,
+        mode: appConfig.isDevelopment ? 'development' : 'production',
+        uiInfo: appConfig.isDevelopment
+          ? 'UI served by Vite at http://localhost:5173/ui'
+          : 'UI served at /ui',
       },
       'snoopty proxy listening'
     );
@@ -148,9 +178,9 @@ async function bootstrap(): Promise<void> {
 
     // Stop metrics worker first
     try {
-      logger.info('Shutdown: Stopping metrics worker');
+      logger.debug('Shutdown: Stopping metrics worker');
       await stopMetricsWorker();
-      logger.info('Shutdown: Metrics worker stopped');
+      logger.debug('Shutdown: Metrics worker stopped');
     } catch (error) {
       logger.error({ error }, 'Shutdown: Error stopping metrics worker');
     }

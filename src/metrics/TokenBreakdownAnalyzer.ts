@@ -97,7 +97,7 @@ export class TokenBreakdownAnalyzer implements MetricsAnalyzer<TokenUsageSummary
       return null;
     }
 
-    logger.info(
+    logger.debug(
       { logId: log.id, path: log.path },
       'TokenBreakdownAnalyzer: Starting analysis'
     );

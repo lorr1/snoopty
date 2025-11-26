@@ -27,7 +27,7 @@ function areLogsEqual(a: LogSummary[], b: LogSummary[]): boolean {
 // =============================================================================
 
 /** How often to poll for new logs (in milliseconds) */
-const DEFAULT_POLL_INTERVAL_MS = 5000;
+const DEFAULT_POLL_INTERVAL_MS = 10000;
 
 /** Number of milliseconds in a day */
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
