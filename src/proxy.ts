@@ -108,6 +108,7 @@ export async function proxyAnthropicRequest(
   const logEntry: InteractionLog = {
     id: interactionId,
     timestamp: new Date(timestampMs).toISOString(),
+    timestampMs,
     method: req.method,
     path: req.path,
     query: extractQuery(req.originalUrl),

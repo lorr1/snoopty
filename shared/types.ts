@@ -117,6 +117,7 @@ export interface ToolMetricsSummary {
 export interface InteractionLog {
   id: string;
   timestamp: string;
+  timestampMs: number;
   method: string;
   path: string;
   query: string;
@@ -141,6 +142,7 @@ export interface LogSummary {
   id: string;
   fileName: string;
   timestamp: string;
+  timestampMs: number;
   method: string;
   path: string;
   status?: number;

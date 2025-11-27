@@ -46,15 +46,18 @@ export default function TimelineBrush({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dragState, setDragState] = useState<{ start: number; current: number } | null>(null);
 
-  const rangeLength = Math.max(range.end - range.start, 1);
+  // Use effectiveSelection as the base for all operations (nested zooming)
+  const baseRange = effectiveSelection;
+  const rangeLength = Math.max(baseRange.end - baseRange.start, 1);
+
 
   const selectionStartFraction = clamp(
-    (effectiveSelection.start - range.start) / rangeLength,
+    (effectiveSelection.start - range.start) / (range.end - range.start),
     0,
     1
   );
   const selectionEndFraction = clamp(
-    (effectiveSelection.end - range.start) / rangeLength,
+    (effectiveSelection.end - range.start) / (range.end - range.start),
     0,
     1
   );
@@ -77,7 +80,7 @@ export default function TimelineBrush({
 
   const fractionToTimestamp = (fraction: number): number => {
     const normalized = clamp(fraction, 0, 1);
-    return range.start + normalized * rangeLength;
+    return baseRange.start + normalized * rangeLength;
   };
 
   const pointerToFraction = (event: ReactPointerEvent<HTMLDivElement>): number => {
@@ -95,8 +98,10 @@ export default function TimelineBrush({
   const finishSelection = (startFraction: number, endFraction: number) => {
     const start = fractionToTimestamp(startFraction);
     const end = fractionToTimestamp(endFraction);
-    if (Math.abs(end - start) < 1_000) {
-      // Treat clicks or tiny drags as "clear selection" so the entire window is visible.
+    const fractionWidth = Math.abs(endFraction - startFraction);
+    // Treat very tiny drags (< 0.5% of viewport) as "go back one level"
+    // This allows nested zooming to arbitrary depth
+    if (fractionWidth < 0.005) {
       onSelectionChange(null);
     } else {
       onSelectionChange({
@@ -152,7 +157,7 @@ export default function TimelineBrush({
     ? clamp((activeTimestamp - range.start) / rangeLength, 0, 1)
     : null;
 
-  const MIN_FRACTION_GAP = 0.004; // ~=0.4% of track width; keeps adjacent bars readable.
+  const MIN_FRACTION_GAP = 0.0008; // ~=0.08% of track width; allows tight clustering
 
   const adjustedFractions = (() => {
     if (logs.length === 0) {

@@ -13,7 +13,7 @@ export const DEFAULT_LOG_LIMIT = 50;
 export const MIN_LOG_LIMIT = 1;
 
 /** Maximum allowed limit for log pagination */
-export const MAX_LOG_LIMIT = 200;
+export const MAX_LOG_LIMIT = 2000;
 
 // =============================================================================
 // Error Messages

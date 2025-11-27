@@ -152,6 +152,7 @@ export async function listLogs(options: ListLogsOptions): Promise<ListLogsResult
       id: entry.id,
       fileName,
       timestamp: entry.timestamp,
+      timestampMs: entry.timestampMs,
       method: entry.method,
       path: entry.path,
     };

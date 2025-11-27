@@ -62,13 +62,16 @@ export function useLogData(): UseLogDataReturn {
   const [recomputeMessage, setRecomputeMessage] = useState<string | null>(null);
 
   const logsWithTime = useMemo<LogWithTime[]>(() => {
-    const parsed = logs.map((entry) => ({
-      ...entry,
-      timestampMs: parseTimestampMs(entry.timestamp),
-    }));
+    const parsed = logs.map((entry) => {
+      const timestampMs = entry.timestampMs ?? parseTimestampMs(entry.timestamp);
+      return {
+        ...entry,
+        timestampMs,
+      };
+    });
     // Add tiny offsets for entries that land in the exact same millisecond
     const seenCounts = new Map<number, number>();
-    return parsed.map((entry) => {
+    const result = parsed.map((entry) => {
       const count = seenCounts.get(entry.timestampMs) ?? 0;
       seenCounts.set(entry.timestampMs, count + 1);
       if (count === 0) {
@@ -79,6 +82,12 @@ export function useLogData(): UseLogDataReturn {
         timestampMs: entry.timestampMs + count,
       };
     });
+
+    if (result.length > 0) {
+      const timestamps = result.map(e => e.timestampMs).sort((a, b) => a - b);
+    }
+
+    return result;
   }, [logs]);
 
   const earliestTimestampMs = useMemo(() => {

@@ -133,6 +133,7 @@ export interface UseLogFilteringReturn {
   selectionActive: boolean;
   timelineRange: TimeRange;
   effectiveSelection: TimeRange;
+  selectionDepth: number;
 
   // Callbacks
   handleTimeWindowInputChange: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -154,10 +155,17 @@ export function useLogFiltering({
     const stored = sessionStorage.getItem('snoopty.timeWindowDays');
     return stored ? Number(stored) : 1;
   });
-  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange | null>(() => {
-    const stored = sessionStorage.getItem('snoopty.selectedTimeRange');
-    return stored ? JSON.parse(stored) : null;
+
+  // Selection history for nested zooming - stores stack of time ranges
+  const [selectionHistory, setSelectionHistory] = useState<TimeRange[]>(() => {
+    const stored = sessionStorage.getItem('snoopty.selectionHistory');
+    return stored ? JSON.parse(stored) : [];
   });
+
+  const selectedTimeRange: TimeRange | null = selectionHistory.length > 0
+    ? selectionHistory[selectionHistory.length - 1]!
+    : null;
+
   const [endpointFilter, setEndpointFilter] = useState<EndpointFilter>(() => {
     const stored = sessionStorage.getItem('snoopty.endpointFilter');
     return (stored as EndpointFilter) || 'messages';
@@ -177,8 +185,8 @@ export function useLogFiltering({
   }, [timeWindowDays]);
 
   useEffect(() => {
-    sessionStorage.setItem('snoopty.selectedTimeRange', JSON.stringify(selectedTimeRange));
-  }, [selectedTimeRange]);
+    sessionStorage.setItem('snoopty.selectionHistory', JSON.stringify(selectionHistory));
+  }, [selectionHistory]);
 
   useEffect(() => {
     sessionStorage.setItem('snoopty.endpointFilter', endpointFilter);
@@ -239,10 +247,9 @@ export function useLogFiltering({
   const windowEnd = windowRange.end;
 
   const windowedLogs = useMemo(
-    () =>
-      logsWithTime.filter(
-        (entry) => entry.timestampMs >= windowStart && entry.timestampMs <= windowEnd
-      ),
+    () => logsWithTime.filter(
+      (entry) => entry.timestampMs >= windowStart && entry.timestampMs <= windowEnd
+    ),
     [logsWithTime, windowStart, windowEnd]
   );
 
@@ -266,36 +273,14 @@ export function useLogFiltering({
     );
   }, [agentFilteredLogs, logIdSearch]);
 
-  const effectiveSelection = useMemo<TimeRange>(() => {
-    if (!selectedTimeRange) {
-      return { start: windowStart, end: windowEnd };
-    }
-    const rawStart = Math.min(selectedTimeRange.start, selectedTimeRange.end);
-    const rawEnd = Math.max(selectedTimeRange.start, selectedTimeRange.end);
-    const start = clamp(rawStart, windowStart, windowEnd);
-    const end = clamp(rawEnd, windowStart, windowEnd);
-    if (end - start < MILLIS_PER_SECOND) {
-      return { start: windowStart, end: windowEnd };
-    }
-    return { start, end };
-  }, [selectedTimeRange, windowStart, windowEnd]);
-
-  const filteredLogs = useMemo(
-    () =>
-      logIdFilteredLogs.filter(
-        (entry) =>
-          entry.timestampMs >= effectiveSelection.start && entry.timestampMs <= effectiveSelection.end
-      ),
-    [logIdFilteredLogs, effectiveSelection]
-  );
-
+  // Compute auto range from logs before time selection (to avoid circular dependency)
   const autoTimelineRange = useMemo<TimeRange>(() => {
-    if (filteredLogs.length === 0) {
+    if (logIdFilteredLogs.length === 0) {
       return windowRange;
     }
-    let minTs = filteredLogs[0]?.timestampMs ?? windowRange.start;
-    let maxTs = filteredLogs[0]?.timestampMs ?? windowRange.end;
-    for (const entry of filteredLogs) {
+    let minTs = logIdFilteredLogs[0]?.timestampMs ?? windowRange.start;
+    let maxTs = logIdFilteredLogs[0]?.timestampMs ?? windowRange.end;
+    for (const entry of logIdFilteredLogs) {
       minTs = Math.min(minTs, entry.timestampMs);
       maxTs = Math.max(maxTs, entry.timestampMs);
     }
@@ -313,7 +298,30 @@ export function useLogFiltering({
       return windowRange;
     }
     return { start, end };
-  }, [filteredLogs, windowRange]);
+  }, [logIdFilteredLogs, windowRange]);
+
+  const effectiveSelection = useMemo<TimeRange>(() => {
+    if (!selectedTimeRange) {
+      return autoTimelineRange;
+    }
+    const rawStart = Math.min(selectedTimeRange.start, selectedTimeRange.end);
+    const rawEnd = Math.max(selectedTimeRange.start, selectedTimeRange.end);
+    const start = clamp(rawStart, windowStart, windowEnd);
+    const end = clamp(rawEnd, windowStart, windowEnd);
+    // Allow selections as small as 1ms for deep nested zooming
+    if (end - start < 1) {
+      return autoTimelineRange;
+    }
+    return { start, end };
+  }, [selectedTimeRange, windowStart, windowEnd, autoTimelineRange]);
+
+  const filteredLogs = useMemo(
+    () => logIdFilteredLogs.filter(
+      (entry) =>
+        entry.timestampMs >= effectiveSelection.start && entry.timestampMs <= effectiveSelection.end
+    ),
+    [logIdFilteredLogs, effectiveSelection]
+  );
 
   const filteredFileNames = useMemo(
     () => filteredLogs.map((entry) => entry.fileName),
@@ -339,21 +347,25 @@ export function useLogFiltering({
     Math.abs(selectedTimeRange.end - selectedTimeRange.start) >= MILLIS_PER_SECOND;
 
   const timelineRange = useMemo<TimeRange>(
-    () => (selectionActive ? effectiveSelection : autoTimelineRange),
-    [selectionActive, effectiveSelection, autoTimelineRange]
+    () => effectiveSelection,
+    [effectiveSelection]
   );
 
-  // Track if this is the first render to avoid resetting on mount
-  const isFirstRender = useRef(true);
+  // Track the previous time window value to detect actual changes
+  const prevTimeWindowDays = useRef<number | null>(null);
 
-  // Reset time selection on window change (but not on initial mount)
+  // Reset time selection only when user actively changes the time window
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
+    // On first render, just store the current value
+    if (prevTimeWindowDays.current === null) {
+      prevTimeWindowDays.current = timeWindowDays;
       return;
     }
-    // User changed the time window, clear the brush selection
-    setSelectedTimeRange(null);
+    // Only clear selection if the value actually changed
+    if (prevTimeWindowDays.current !== timeWindowDays) {
+      setSelectionHistory([]);
+      prevTimeWindowDays.current = timeWindowDays;
+    }
   }, [timeWindowDays]);
 
   // Reset agent filter when option disappears (only after initial load)
@@ -402,23 +414,30 @@ export function useLogFiltering({
   );
 
   const handleBrushSelection = useCallback((range: TimeRange | null) => {
-    setSelectedTimeRange(range);
+    if (range === null) {
+      // Tiny drag - treat as "go back one level"
+      setSelectionHistory((prev) => (prev.length > 0 ? prev.slice(0, -1) : []));
+    } else {
+      // Valid selection - add to history stack (nested zoom)
+      setSelectionHistory((prev) => [...prev, range]);
+    }
   }, []);
 
   const handleClearTimeSelection = useCallback(() => {
-    setSelectedTimeRange(null);
+    // Clear all selections - go back to full window
+    setSelectionHistory([]);
   }, []);
 
   const handleClearAllFilters = useCallback(() => {
     setTimeWindowDays(1);
-    setSelectedTimeRange(null);
+    setSelectionHistory([]);
     setEndpointFilter('messages');
     setAgentFilter('all');
     setLogIdSearch('');
 
     // Clear sessionStorage as well
     sessionStorage.setItem('snoopty.timeWindowDays', '1');
-    sessionStorage.setItem('snoopty.selectedTimeRange', 'null');
+    sessionStorage.setItem('snoopty.selectionHistory', '[]');
     sessionStorage.setItem('snoopty.endpointFilter', 'messages');
     sessionStorage.setItem('snoopty.agentFilter', 'all');
     sessionStorage.setItem('snoopty.logIdSearch', '');
@@ -438,6 +457,7 @@ export function useLogFiltering({
     selectionActive,
     timelineRange,
     effectiveSelection,
+    selectionDepth: selectionHistory.length,
     handleTimeWindowInputChange,
     handleEndpointFilterChange,
     handleAgentFilterChange,

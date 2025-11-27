@@ -103,12 +103,6 @@ npm start
 # NODE_ENV=production npm start
 ```
 
-**What's happening:**
-- Single server on port 8787 serves everything:
-  - API proxy and logging functionality
-  - Static UI files from built React app
-  - Access the UI at `http://localhost:8787/ui`
-
 **Note:** The server automatically detects production mode when:
 - `NODE_ENV=production` is set, OR
 - Running compiled JavaScript (not via ts-node-dev)
