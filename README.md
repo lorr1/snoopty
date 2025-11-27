@@ -110,15 +110,15 @@ npm start
 
 ### Using the Proxy
 
-Configure Claude Code to use Snoopty as the API endpoint:
+Configure Claude Code to use Snoopty as the API endpoint.
+
+**IMPORTANT** Anthropic will yell at you about "auth conflict". Ignore it. Do not log out. Proceed as normal.
 
 ```bash
 # Use Snoopty proxy (always port 8787 for API, regardless of dev/prod mode)
 # Yes, you need to give the API key here again.
 ANTHROPIC_BASE_URL=http://localhost:8787 ANTHROPIC_API_KEY="sk-ant-XXX" claude
 ```
-
-**Note:** Claude Code may complain about needing to logout. You can safely ignore this message - it will still work.
 
 All requests will be forwarded to Anthropic and logged locally in the `logs/` directory.
 
@@ -149,7 +149,7 @@ Snoopty consists of two main components:
    - Tool usage statistics
    - Export functionality (Parquet format)
 
-### Data Flow
+### Data FlowN
 
 1. Claude Code sends request to `http://localhost:8787/v1/*`
 2. Snoopty proxy:
