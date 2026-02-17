@@ -16,6 +16,9 @@ export type AgentTagId =
   | 'conversation-summarizer'
   | 'file-path-extractor'
   | 'bash-command-processor'
+  | 'bug-triage'
+  | 'planner'
+  | 'git-history-analyzer'
   | 'untagged';
 
 export interface AgentTagTheme {
@@ -138,6 +141,8 @@ export interface InteractionLog {
   toolMetrics?: ToolMetricsSummary;
 }
 
+export type EndpointType = 'messages' | 'other';
+
 export interface LogSummary {
   id: string;
   fileName: string;
@@ -145,6 +150,7 @@ export interface LogSummary {
   timestampMs: number;
   method: string;
   path: string;
+  endpointType: EndpointType;
   status?: number;
   durationMs?: number;
   model?: string;

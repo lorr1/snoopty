@@ -37,7 +37,7 @@ export default function LogListItem({
       ? Math.max((duration / maxDuration) * 100, duration > 0 ? 6 : 0)
       : 0;
   const tokenChips = buildTokenChips(entry.tokenUsage?.system_totals);
-  const endpointCategory = getEndpointCategory(entry.path);
+  const endpointCategory = getEndpointCategory(entry.path, entry);
   const endpointTheme = ENDPOINT_STYLES[endpointCategory];
   const startedAtLabel = formatTimeOfDay(entry.timestamp);
   const fullStartLabel = formatTimestamp(entry.timestamp);

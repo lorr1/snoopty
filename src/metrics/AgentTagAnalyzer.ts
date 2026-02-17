@@ -107,7 +107,50 @@ const TAG_RULES: AgentTagRule[] = [
       border: 'rgba(37, 99, 235, 0.35)',
     },
     matchers: [
-      /you are an interactive cli tool that helps users with software engineering tasks\.\s*use the instructions below and the tools/i,
+      /you are an interactive (cli tool|agent) that helps users with software engineering tasks\.\s*use the instructions below and the tools/i,
+    ],
+  },
+  {
+    id: 'bug-triage',
+    label: 'Bug Triage Agent',
+    description: 'Specialized agent for reviewing and triaging GitHub issues.',
+    theme: {
+      text: '#c026d3',
+      background: 'rgba(192, 38, 211, 0.15)',
+      border: 'rgba(192, 38, 211, 0.35)',
+    },
+    matchers: [
+      /specialized bug triage agent/i,
+      /bug triage agent/i,
+    ],
+  },
+  {
+    id: 'planner',
+    label: 'Planning Agent',
+    description: 'Software architect and planning specialist in read-only mode.',
+    theme: {
+      text: '#0891b2',
+      background: 'rgba(8, 145, 178, 0.15)',
+      border: 'rgba(8, 145, 178, 0.35)',
+    },
+    matchers: [
+      /software architect and planning specialist/i,
+      /READ-ONLY planning task/i,
+      /READ-ONLY MODE.*NO FILE MODIFICATIONS/i,
+    ],
+  },
+  {
+    id: 'git-history-analyzer',
+    label: 'Git History Analyzer',
+    description: 'Analyzes git history to identify frequently modified files.',
+    theme: {
+      text: '#6d28d9',
+      background: 'rgba(109, 40, 217, 0.15)',
+      border: 'rgba(109, 40, 217, 0.35)',
+    },
+    matchers: [
+      /expert at analyzing git history/i,
+      /given a list of files and their modification counts/i,
     ],
   },
   {

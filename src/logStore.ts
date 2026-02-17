@@ -148,6 +148,20 @@ export async function listLogs(options: ListLogsOptions): Promise<ListLogsResult
 
     await ensureLogMetadata(entry, filePath);
 
+    // Determine endpoint type - categorize token counting requests as 'other' (Meta)
+    const isTokenCountingRequest =
+      entry.path.includes('/count_tokens') ||
+      (entry.path.endsWith('/messages') &&
+        typeof entry.request?.body === 'object' &&
+        entry.request.body !== null &&
+        (entry.request.body as Record<string, unknown>).max_tokens === 1);
+
+    const endpointType: 'messages' | 'other' = isTokenCountingRequest
+      ? 'other'
+      : entry.path.endsWith('/messages')
+        ? 'messages'
+        : 'other';
+
     const summary: LogSummary = {
       id: entry.id,
       fileName,
@@ -155,6 +169,7 @@ export async function listLogs(options: ListLogsOptions): Promise<ListLogsResult
       timestampMs: entry.timestampMs,
       method: entry.method,
       path: entry.path,
+      endpointType,
     };
 
     if (typeof entry.response?.status === 'number') {

@@ -68,8 +68,28 @@ export const ENDPOINT_STYLES: Record<
 // Helper Functions
 // =============================================================================
 
-export function getEndpointCategory(path?: string): EndpointCategory {
-  const normalized = path?.toLowerCase() ?? '';
+export function getEndpointCategory(
+  pathOrType?: string | EndpointCategory,
+  log?: { endpointType?: EndpointCategory }
+): EndpointCategory {
+  // If endpointType is provided in the log, use it (backend-computed)
+  if (log?.endpointType) {
+    return log.endpointType;
+  }
+
+  // If a direct category is passed, return it
+  if (pathOrType === 'messages' || pathOrType === 'other') {
+    return pathOrType;
+  }
+
+  // Fall back to path-based detection for backwards compatibility
+  const normalized = pathOrType?.toLowerCase() ?? '';
+
+  // Token counting utility endpoints are always Meta
+  if (normalized.includes('/count_tokens') || normalized.includes('/models')) {
+    return 'other';
+  }
+
   if (normalized.endsWith('/messages')) {
     return 'messages';
   }
@@ -89,11 +109,15 @@ function statusTone(status?: number): 'success' | 'warning' | 'error' | 'unknown
   return 'error';
 }
 
-function matchesEndpointFilter(path: string | undefined, filter: EndpointFilter): boolean {
+function matchesEndpointFilter(
+  path: string | undefined,
+  filter: EndpointFilter,
+  entry?: { endpointType?: EndpointCategory }
+): boolean {
   if (filter === 'all') {
     return true;
   }
-  return getEndpointCategory(path) === filter;
+  return getEndpointCategory(path, entry) === filter;
 }
 
 function matchesAgentFilter(agentTag: AgentTagInfo | undefined, filter: AgentFilter): boolean {
@@ -254,7 +278,7 @@ export function useLogFiltering({
   );
 
   const endpointFilteredLogs = useMemo(
-    () => windowedLogs.filter((entry) => matchesEndpointFilter(entry.path, endpointFilter)),
+    () => windowedLogs.filter((entry) => matchesEndpointFilter(entry.path, endpointFilter, entry)),
     [windowedLogs, endpointFilter]
   );
 
@@ -331,7 +355,7 @@ export function useLogFiltering({
   const brushPoints = useMemo(
     () =>
       filteredLogs.map((entry) => {
-        const category = getEndpointCategory(entry.path);
+        const category = getEndpointCategory(entry.path, entry);
         return {
           timestampMs: entry.timestampMs,
           tone: statusTone(entry.status),
