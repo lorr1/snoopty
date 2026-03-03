@@ -175,10 +175,14 @@ export async function proxyAnthropicRequest(
 
     res.status(upstreamResponse.status);
     upstreamResponse.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'content-length') {
+      const lowerKey = key.toLowerCase();
+      // Drop content-length (we recompute it) and content-encoding (undici's fetch
+      // already decompresses the body per the Fetch spec, so forwarding the header
+      // would cause the client to attempt a second decompression).
+      if (lowerKey === 'content-length' || lowerKey === 'content-encoding') {
         return;
       }
-      res.setHeader(key, value);
+      res.setHeader(lowerKey, value);
     });
 
     const responseHeaders: Record<string, string | string[] | undefined> = {};
